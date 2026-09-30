@@ -297,6 +297,48 @@ describe('fetchWheelCandidates with combos', () => {
     expect(calledUrl(fetchMock).searchParams.get('with_genres')).toBe('27,35');
   });
 
+  it('mixes titles from every selected combo, even when the first one fills the wheel', async () => {
+    const fetchMock = mockFetch(url => {
+      const base = url.searchParams.get('with_genres') === '27,35' ? 100 : 200;
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 20,
+        results: Array.from({ length: 20 }, (_, i) => rawMovie(base + i)),
+      };
+    });
+    const genres = [
+      { name: 'Horror', movieId: 27, tvId: null },
+      { name: 'Comedy', movieId: 35, tvId: 35 },
+      { name: 'Romance', movieId: 10749, tvId: null },
+    ];
+
+    const res = await fetchWheelCandidates(
+      filters({ selectedCombos: ['Horror Comedy', 'Rom-Com'] }),
+      genres,
+      12
+    );
+
+    const requested = fetchMock.mock.calls.map((_, i) => calledUrl(fetchMock, i).searchParams.get('with_genres'));
+    expect(new Set(requested)).toEqual(new Set(['27,35', '10749,35']));
+    expect(res).toHaveLength(12);
+    expect(res.some(m => m.id < 200)).toBe(true);
+    expect(res.some(m => m.id >= 200)).toBe(true);
+  });
+
+  it('mixes movies and TV when both are selected', async () => {
+    mockFetch(url => ({
+      page: 1,
+      total_pages: 1,
+      total_results: 20,
+      results: Array.from({ length: 20 }, (_, i) => rawMovie((url.pathname.endsWith('/tv') ? 500 : 0) + i)),
+    }));
+
+    const res = await fetchWheelCandidates(filters({ mediaType: 'both' }), [], 12);
+
+    expect(new Set(res.map(m => m.media_type))).toEqual(new Set(['movie', 'tv']));
+  });
+
   it('skips fetching when no selection can match the media type', async () => {
     const fetchMock = mockFetch(() => ({}));
     const genres = [{ name: 'Romance', movieId: 10749, tvId: null }];

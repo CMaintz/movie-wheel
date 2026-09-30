@@ -90,7 +90,7 @@ Optionally add `TMDB_READ_TOKEN` as a second secret. Without it, watch-provider 
 - The origin check only affects browsers. It stops other websites from using the proxy from their visitors' browsers. Scripts that don't send an `Origin` header can still call the allowed TMDB paths, up to the rate limit.
 - Caching: successful responses send `Cache-Control: max-age=300, s-maxage=300`, so browsers (and Vercel's CDN) cache them. The Worker doesn't use the Cloudflare Cache API.
 - Discovery sorts by popularity and only samples the first 100 result pages.
-- TMDB can't do "(A and B) or C" in one query, so each spin picks one genre selection or combo per request and mixes the results.
+- TMDB can't do "(A and B) or C" in one query, so each spin queries every genre selection and combo separately (up to six) and mixes the results. Same for movies vs TV when "Both" is picked.
 - TV has no Romance, Horror or Thriller genres on TMDB, so combos using them are greyed out for TV.
 - The wheel is a canvas animation with no text alternative for screen readers. Not great, I know.
 

@@ -270,7 +270,7 @@ export const buildGenreClauses = (
   return clauses;
 };
 
-const pickRandom = <T>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+const MAX_SELECTIONS_PER_SPIN = 6;
 
 const shuffle = <T>(items: T[]): T[] => {
   const out = [...items];
@@ -294,8 +294,14 @@ export const fetchWheelCandidates = async (
 
   const results: Media[] = [];
 
-  for (let attempt = 0; attempt < 5 && results.length < count; attempt++) {
-    const { type, clause } = pickRandom(options);
+  // Visit every selection (up to a cap) before stopping, otherwise the first page fills the
+  // wheel and multiple combos or "both" media types never actually mix
+  const order = shuffle(options);
+  const mustVisit = Math.min(order.length, MAX_SELECTIONS_PER_SPIN);
+  const maxAttempts = Math.max(5, mustVisit);
+
+  for (let attempt = 0; attempt < maxAttempts && (attempt < mustVisit || results.length < count); attempt++) {
+    const { type, clause } = order[attempt % order.length];
     const query: DiscoverQuery = {
       ...clause,
       minRating: filters.minRating,
