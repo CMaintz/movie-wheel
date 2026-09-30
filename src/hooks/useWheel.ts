@@ -48,17 +48,7 @@ export const useWheel = () => {
     setWinnerMedia(null);
 
     try {
-      const movies = await fetchWheelCandidates(
-        filters.mediaType,
-        [],
-        filters.genreMode,
-        filters.minRating,
-        filters.yearFrom,
-        filters.yearTo,
-        SEGMENT_COUNT,
-        allGenres,
-        filters.selectedGenres
-      );
+      const movies = await fetchWheelCandidates(filters, allGenres, SEGMENT_COUNT);
 
       if (movies.length === 0) {
         setError('No movies found matching your filters. Try broadening your criteria.');

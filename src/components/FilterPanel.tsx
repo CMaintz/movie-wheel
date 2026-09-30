@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { MergedGenre } from '../types';
 import type { FilterState, MediaTypeFilter, GenreMode } from '../hooks/useFilters';
 import { getStoredRegion, setStoredRegion, SUPPORTED_REGIONS } from '../utils/region';
+import { GENRE_COMBOS, resolveCombo } from '../utils/genreCombos';
 import { SlidersHorizontal, X, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FilterPanelProps {
@@ -9,8 +10,11 @@ interface FilterPanelProps {
   genres: MergedGenre[];
   onSetMediaType: (t: MediaTypeFilter) => void;
   onToggleGenre: (g: string) => void;
+  onToggleCombo: (c: string) => void;
   onSetGenreMode: (m: GenreMode) => void;
   onSetMinRating: (r: number) => void;
+  onSetMinVotes: (v: number) => void;
+  onSetLanguage: (l: string) => void;
   onSetYearFrom: (y: number) => void;
   onSetYearTo: (y: number) => void;
   onReset: () => void;
@@ -20,13 +24,46 @@ interface FilterPanelProps {
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+const MIN_VOTE_OPTIONS = [0, 50, 100, 250, 500, 1000];
+
+const LANGUAGES: { code: string; label: string }[] = [
+  { code: '', label: 'Any language' },
+  { code: 'en', label: 'English' },
+  { code: 'da', label: 'Danish' },
+  { code: 'sv', label: 'Swedish' },
+  { code: 'no', label: 'Norwegian' },
+  { code: 'de', label: 'German' },
+  { code: 'fr', label: 'French' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'it', label: 'Italian' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'zh', label: 'Chinese' },
+];
+
+const selectClass =
+  'w-full bg-bg-default border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none disabled:opacity-30';
+
+const chipClass = (isActive: boolean, isApplicable: boolean) =>
+  `px-2.5 py-1 text-xs rounded-full border transition-colors disabled:opacity-30 ${
+    isActive
+      ? 'bg-primary/20 border-primary text-primary-light font-medium'
+      : isApplicable
+        ? 'border-white/15 text-white/60 hover:border-white/30 hover:text-white/80'
+        : 'border-white/5 text-white/20 cursor-not-allowed'
+  }`;
+
 const FilterPanel: React.FC<FilterPanelProps> = ({
   filters,
   genres,
   onSetMediaType,
   onToggleGenre,
+  onToggleCombo,
   onSetGenreMode,
   onSetMinRating,
+  onSetMinVotes,
+  onSetLanguage,
   onSetYearFrom,
   onSetYearTo,
   onReset,
@@ -133,13 +170,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
                   key={g.name}
                   onClick={() => isApplicable && onToggleGenre(g.name)}
                   disabled={disabled || !isApplicable}
-                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors disabled:opacity-30 ${
-                    isActive
-                      ? 'bg-primary/20 border-primary text-primary-light font-medium'
-                      : isApplicable
-                        ? 'border-white/15 text-white/60 hover:border-white/30 hover:text-white/80'
-                        : 'border-white/5 text-white/20 cursor-not-allowed'
-                  }`}
+                  className={chipClass(isActive, isApplicable)}
                 >
                   {g.name}
                 </button>
@@ -152,6 +183,35 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
               {filters.selectedGenres.join(', ')}
             </p>
           )}
+        </div>
+
+        {/* Genre combos */}
+        <div>
+          <label className="text-sm font-medium text-white/70 mb-2 block">Genre Combos</label>
+          <div className="flex flex-wrap gap-1.5">
+            {GENRE_COMBOS.map(c => {
+              const isActive = filters.selectedCombos.includes(c.name);
+              const isApplicable =
+                (filters.mediaType !== 'tv' && resolveCombo(c, 'movie', genres) !== null) ||
+                (filters.mediaType !== 'movie' && resolveCombo(c, 'tv', genres) !== null);
+
+              return (
+                <button
+                  key={c.name}
+                  onClick={() => isApplicable && onToggleCombo(c.name)}
+                  disabled={disabled || !isApplicable}
+                  className={chipClass(isActive, isApplicable)}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-white/40">
+            {filters.selectedCombos.length > 0
+              ? `Also spinning: ${filters.selectedCombos.join(', ')}`
+              : 'A combo only matches titles that have both genres.'}
+          </p>
         </div>
 
         {/* Min Rating */}
@@ -174,6 +234,38 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
             <span>0</span>
             <span>5</span>
             <span>10</span>
+          </div>
+        </div>
+
+        {/* Min votes + language */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label htmlFor="min-votes" className="text-sm font-medium text-white/70 mb-2 block">Min Votes</label>
+            <select
+              id="min-votes"
+              value={filters.minVotes}
+              onChange={e => onSetMinVotes(parseInt(e.target.value))}
+              disabled={disabled}
+              className={selectClass}
+            >
+              {MIN_VOTE_OPTIONS.map(v => (
+                <option key={v} value={v}>{v === 0 ? 'Any' : `${v}+`}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="language" className="text-sm font-medium text-white/70 mb-2 block">Language</label>
+            <select
+              id="language"
+              value={filters.language}
+              onChange={e => onSetLanguage(e.target.value)}
+              disabled={disabled}
+              className={selectClass}
+            >
+              {LANGUAGES.map(l => (
+                <option key={l.code} value={l.code}>{l.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -214,9 +306,10 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </button>
           {showRegion && (
             <select
+              aria-label="Watch region"
               value={region}
               onChange={e => handleRegionChange(e.target.value)}
-              className="mt-2 w-full bg-bg-default border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
+              className={`mt-2 ${selectClass}`}
             >
               {SUPPORTED_REGIONS.map(r => (
                 <option key={r} value={r}>{r}</option>

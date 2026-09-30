@@ -18,6 +18,22 @@ describe('useFilters', () => {
     expect(result.current.state.selectedGenres).toEqual(['Comedy']);
   });
 
+  it('toggles genre combos and sets the vote floor and language', () => {
+    const { result } = renderHook(() => useFilters());
+    act(() => result.current.toggleCombo('Rom-Com'));
+    act(() => result.current.setMinVotes(500));
+    act(() => result.current.setLanguage(''));
+    expect(result.current.state).toMatchObject({ selectedCombos: ['Rom-Com'], minVotes: 500, language: '' });
+    act(() => result.current.toggleCombo('Rom-Com'));
+    expect(result.current.state.selectedCombos).toEqual([]);
+  });
+
+  it('fills in new fields when restoring filters saved by an older version', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ mediaType: 'tv', minRating: 7 }));
+    const { result } = renderHook(() => useFilters());
+    expect(result.current.state).toMatchObject({ mediaType: 'tv', selectedCombos: [], minVotes: 100, language: 'en' });
+  });
+
   it('persists to and restores from localStorage', () => {
     const first = renderHook(() => useFilters());
     act(() => first.result.current.setMediaType('tv'));

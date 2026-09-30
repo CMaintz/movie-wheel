@@ -1,5 +1,7 @@
 import type { MediaResponse, Genre, MediaDetails, Media, MergedGenre } from '../types';
 import { config } from '../config';
+import type { FilterState, GenreMode } from '../hooks/useFilters';
+import { GENRE_COMBOS, resolveCombo } from '../utils/genreCombos';
 
 const TMDB_DIRECT_URL = 'https://api.themoviedb.org/3';
 const DEFAULT_LANGUAGE = 'en-US';
@@ -168,23 +170,32 @@ export const getWatchProviders = async (
 
 // --- Discover / Random ---
 
+export interface DiscoverQuery {
+  genreIds: number[];
+  genreMode: GenreMode;
+  minRating: number;
+  minVotes: number;
+  language: string;
+  yearFrom: number | null;
+  yearTo: number | null;
+}
+
 export const discoverRandom = async (
   mediaType: 'movie' | 'tv',
-  genreIds: number[],
-  genreMode: 'AND' | 'OR',
-  minRating: number,
-  yearFrom: number | null,
-  yearTo: number | null,
+  query: DiscoverQuery,
   page: number
 ): Promise<MediaResponse> => {
+  const { genreIds, genreMode, minRating, minVotes, language, yearFrom, yearTo } = query;
   const safePage = Math.min(page, MAX_PAGE_LIMIT);
   const separator = genreMode === 'AND' ? ',' : '|';
   const params: QueryParams = {
     page: safePage,
     sort_by: 'popularity.desc',
-    with_original_language: 'en',
     'vote_average.gte': minRating,
   };
+
+  if (minVotes > 0) params['vote_count.gte'] = minVotes;
+  if (language) params.with_original_language = language;
 
   if (genreIds.length > 0) {
     params.with_genres = genreIds.join(separator);
@@ -220,52 +231,89 @@ export const discoverRandom = async (
 
 // --- Fetch wheel candidates ---
 
+interface GenreClause {
+  genreIds: number[];
+  genreMode: GenreMode;
+}
+
+// Selected single genres form one clause and each combo forms its own AND clause.
+// A title qualifies if it matches any clause. Clauses TMDB can't express for this
+// media type are dropped; an empty result means nothing can match.
+export const buildGenreClauses = (
+  type: 'movie' | 'tv',
+  filters: Pick<FilterState, 'selectedGenres' | 'selectedCombos' | 'genreMode'>,
+  allGenres: MergedGenre[]
+): GenreClause[] => {
+  const { selectedGenres, selectedCombos, genreMode } = filters;
+  if (selectedGenres.length === 0 && selectedCombos.length === 0) {
+    return [{ genreIds: [], genreMode: 'OR' }];
+  }
+
+  const clauses: GenreClause[] = [];
+
+  if (selectedGenres.length > 0) {
+    const ids = selectedGenres.map(name => {
+      const g = allGenres.find(ag => ag.name === name);
+      return g ? (type === 'movie' ? g.movieId : g.tvId) : null;
+    });
+    const resolved = ids.filter((id): id is number => id !== null);
+    const satisfiable = genreMode === 'OR' ? resolved.length > 0 : resolved.length === ids.length;
+    if (satisfiable) clauses.push({ genreIds: resolved, genreMode });
+  }
+
+  for (const name of selectedCombos) {
+    const combo = GENRE_COMBOS.find(c => c.name === name);
+    const ids = combo ? resolveCombo(combo, type, allGenres) : null;
+    if (ids) clauses.push({ genreIds: ids, genreMode: 'AND' });
+  }
+
+  return clauses;
+};
+
+const pickRandom = <T>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+
+const shuffle = <T>(items: T[]): T[] => {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+};
+
 export const fetchWheelCandidates = async (
-  mediaType: 'movie' | 'tv' | 'both',
-  genreIds: number[],
-  genreMode: 'AND' | 'OR',
-  minRating: number,
-  yearFrom: number | null,
-  yearTo: number | null,
-  count: number = 12,
+  filters: FilterState,
   allGenres: MergedGenre[] = [],
-  selectedGenreNames: string[] = []
+  count: number = 12
 ): Promise<Media[]> => {
+  const types: Array<'movie' | 'tv'> = filters.mediaType === 'both' ? ['movie', 'tv'] : [filters.mediaType];
+  const options = types.flatMap(type =>
+    buildGenreClauses(type, filters, allGenres).map(clause => ({ type, clause }))
+  );
+  if (options.length === 0) return [];
+
   const results: Media[] = [];
 
-  const resolveGenreIds = (type: 'movie' | 'tv'): number[] => {
-    if (selectedGenreNames.length === 0) return [];
-    return selectedGenreNames
-      .map(name => {
-        const g = allGenres.find(ag => ag.name === name);
-        if (!g) return null;
-        return type === 'movie' ? g.movieId : g.tvId;
-      })
-      .filter((id): id is number => id !== null);
-  };
-
   for (let attempt = 0; attempt < 5 && results.length < count; attempt++) {
-    const chosenType: 'movie' | 'tv' =
-      mediaType === 'both'
-        ? (Math.random() < 0.5 ? 'movie' : 'tv')
-        : mediaType;
-
-    const resolvedIds = selectedGenreNames.length > 0
-      ? resolveGenreIds(chosenType)
-      : genreIds;
+    const { type, clause } = pickRandom(options);
+    const query: DiscoverQuery = {
+      ...clause,
+      minRating: filters.minRating,
+      minVotes: filters.minVotes,
+      language: filters.language,
+      yearFrom: filters.yearFrom,
+      yearTo: filters.yearTo,
+    };
 
     // First call to get total_pages
-    const firstPage = await discoverRandom(
-      chosenType, resolvedIds, genreMode, minRating, yearFrom, yearTo, 1
-    );
+    const firstPage = await discoverRandom(type, query, 1);
 
     if (firstPage.total_pages === 0 || firstPage.total_results === 0) continue;
 
     const maxPage = Math.min(firstPage.total_pages, 100);
     const randomPage = Math.floor(Math.random() * maxPage) + 1;
 
-    const pageData = randomPage === 1 ? firstPage :
-      await discoverRandom(chosenType, resolvedIds, genreMode, minRating, yearFrom, yearTo, randomPage);
+    const pageData = randomPage === 1 ? firstPage : await discoverRandom(type, query, randomPage);
 
     const withPosters = pageData.results
       .filter(m => m.poster_path)
@@ -274,13 +322,13 @@ export const fetchWheelCandidates = async (
     results.push(...withPosters);
   }
 
-  // Shuffle and take desired count
-  const shuffled = results.sort(() => Math.random() - 0.5).slice(0, count);
+  const picked = shuffle(results).slice(0, count);
 
-  // If fewer than count, pad with duplicates
-  while (shuffled.length > 0 && shuffled.length < count) {
-    shuffled.push(shuffled[shuffled.length % results.length]);
+  // If fewer than count, pad with repeats
+  const unique = picked.length;
+  while (unique > 0 && picked.length < count) {
+    picked.push(picked[picked.length % unique]);
   }
 
-  return shuffled;
+  return picked;
 };

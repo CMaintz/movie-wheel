@@ -53,8 +53,11 @@ function App() {
           genres={genres}
           onSetMediaType={filters.setMediaType}
           onToggleGenre={filters.toggleGenre}
+          onToggleCombo={filters.toggleCombo}
           onSetGenreMode={filters.setGenreMode}
           onSetMinRating={filters.setMinRating}
+          onSetMinVotes={filters.setMinVotes}
+          onSetLanguage={filters.setLanguage}
           onSetYearFrom={filters.setYearFrom}
           onSetYearTo={filters.setYearTo}
           onReset={filters.resetFilters}
@@ -132,8 +135,11 @@ function App() {
               genres={genres}
               onSetMediaType={filters.setMediaType}
               onToggleGenre={filters.toggleGenre}
+              onToggleCombo={filters.toggleCombo}
               onSetGenreMode={filters.setGenreMode}
               onSetMinRating={filters.setMinRating}
+              onSetMinVotes={filters.setMinVotes}
+              onSetLanguage={filters.setLanguage}
               onSetYearFrom={filters.setYearFrom}
               onSetYearTo={filters.setYearTo}
               onReset={filters.resetFilters}
