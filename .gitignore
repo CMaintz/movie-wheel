@@ -30,3 +30,7 @@ dist-ssr
 
 # Test coverage
 coverage
+
+# Wrangler
+.wrangler
+.dev.vars*
