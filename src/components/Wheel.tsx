@@ -2,10 +2,11 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WheelSegmentData } from '../types';
 import type { WheelState } from '../hooks/useWheel';
 import { easeOutCubic } from '../utils/easing';
+import { TAU, computeSpinDelta } from '../utils/wheelMath';
 import { Tv, Image as ImageIcon } from 'lucide-react';
 
 const SEGMENT_COUNT = 12;
-const SEGMENT_ANGLE = (2 * Math.PI) / SEGMENT_COUNT;
+const SEGMENT_ANGLE = TAU / SEGMENT_COUNT;
 const SPIN_DURATION = 4500; // ms
 const MIN_ROTATIONS = 5;
 const MAX_EXTRA_ROTATIONS = 3;
@@ -224,19 +225,17 @@ const Wheel: React.FC<WheelProps> = ({
       ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.fill();
     }
-  }, [canvasSize, segments, images, displayMode]);
+  }, [canvasSize, images, displayMode]);
 
   // Spin animation
   useEffect(() => {
     if (wheelState !== 'spinning' || winnerIndex === null) return;
 
-    // Calculate target angle: winner segment should be at top (12 o'clock = -PI/2)
-    const targetSegmentCenter = winnerIndex * SEGMENT_ANGLE + SEGMENT_ANGLE / 2;
-    const fullRotations = (MIN_ROTATIONS + Math.floor(Math.random() * MAX_EXTRA_ROTATIONS)) * Math.PI * 2;
-    // We want the segment at winnerIndex to be at the top
-    // The pointer is at -PI/2 (top). A segment at angle 'a' from start is under pointer when rotation = -a
+    const fullTurns = MIN_ROTATIONS + Math.floor(Math.random() * MAX_EXTRA_ROTATIONS);
     const jitter = (Math.random() - 0.5) * SEGMENT_ANGLE * 0.5;
-    const totalAngle = fullRotations + (2 * Math.PI - targetSegmentCenter) + jitter;
+    const totalAngle = computeSpinDelta(
+      currentAngleRef.current, winnerIndex, SEGMENT_COUNT, fullTurns, jitter
+    );
 
     const startTime = performance.now();
     const startAngle = currentAngleRef.current;
@@ -254,6 +253,7 @@ const Wheel: React.FC<WheelProps> = ({
         animRef.current = requestAnimationFrame(animate);
       } else {
         animRef.current = null;
+        currentAngleRef.current = angle % TAU;
         onSpinComplete();
       }
     };
