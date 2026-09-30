@@ -1,0 +1,83 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import ResultModal from './ResultModal';
+import { getMediaDetails, getWatchProviders } from '../services/api';
+import type { Media, MediaDetails } from '../types';
+
+vi.mock('../services/api', () => ({
+  getMediaDetails: vi.fn(),
+  getWatchProviders: vi.fn(),
+}));
+
+const media: Media = {
+  id: 603,
+  title: 'The Matrix',
+  poster_path: '/matrix.jpg',
+  backdrop_path: '',
+  vote_average: 8.2,
+  vote_count: 1,
+  popularity: 1,
+  overview: '',
+  genres: [],
+  media_type: 'movie',
+  release_date: '1999-03-31',
+};
+
+const details = {
+  ...media,
+  overview: 'A hacker learns the truth.',
+  runtime: 136,
+  genres: [{ id: 28, name: 'Action' }],
+  imdb_id: 'tt0133093',
+  credits: { cast: [{ id: 1, name: 'Keanu Reeves', character: 'Neo', profile_path: '' }], crew: [] },
+  videos: { results: [] },
+  status: 'Released',
+} as MediaDetails;
+
+describe('ResultModal', () => {
+  beforeEach(() => {
+    vi.mocked(getMediaDetails).mockResolvedValue(details);
+    vi.mocked(getWatchProviders).mockResolvedValue({
+      link: 'https://tmdb.example/watch',
+      flatrate: [{ provider_id: 8, provider_name: 'Netflix', logo_path: '/n.png', display_priority: 1 }],
+    });
+  });
+
+  it('shows details, cast, runtime and streaming providers', async () => {
+    render(<ResultModal media={media} onClose={vi.fn()} onSpinAgain={vi.fn()} />);
+
+    expect(await screen.findByText('A hacker learns the truth.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'The Matrix' })).toBeInTheDocument();
+    expect(screen.getByText('2h 16m')).toBeInTheDocument();
+    expect(screen.getByText('Keanu Reeves')).toBeInTheDocument();
+    expect(screen.getByText('Netflix')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /IMDb/ })).toHaveAttribute(
+      'href',
+      'https://www.imdb.com/title/tt0133093'
+    );
+  });
+
+  it('closes on Escape and spins again on request', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onSpinAgain = vi.fn();
+    render(<ResultModal media={media} onClose={onClose} onSpinAgain={onSpinAgain} />);
+
+    await user.click(await screen.findByRole('button', { name: /Spin Again/ }));
+    await user.keyboard('{Escape}');
+
+    expect(onSpinAgain).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('still renders the basics when the detail request fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(getMediaDetails).mockRejectedValue(new Error('boom'));
+
+    render(<ResultModal media={media} onClose={vi.fn()} onSpinAgain={vi.fn()} />);
+
+    expect(await screen.findByRole('heading', { name: 'The Matrix' })).toBeInTheDocument();
+    expect(screen.queryByText('Netflix')).not.toBeInTheDocument();
+  });
+});
