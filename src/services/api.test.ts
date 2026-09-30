@@ -62,6 +62,7 @@ describe('discoverRandom', () => {
     expect(url.searchParams.get('page')).toBe('3');
     expect(url.searchParams.get('vote_average.gte')).toBe('6.5');
     expect(url.searchParams.get('primary_release_date.gte')).toBe('1990-01-01');
+    expect(url.searchParams.get('primary_release_date.lte')).toBe('2000-12-31');
     expect(url.searchParams.get('with_release_type')).toBe('4|5|6');
     expect(url.searchParams.get('language')).toBe('en-US');
   });
@@ -75,6 +76,37 @@ describe('discoverRandom', () => {
     expect(url.searchParams.get('with_genres')).toBe('18,35');
     expect(url.searchParams.get('first_air_date.gte')).toBe('2010-01-01');
     expect(url.searchParams.has('with_release_type')).toBe(false);
+  });
+
+  it('uses the current date for the release cut-off, not the date the module loaded', async () => {
+    const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2030-01-01T12:00:00Z'));
+      await discoverRandom('movie', [], 'OR', 0, null, null, 1);
+      vi.setSystemTime(new Date('2030-01-02T12:00:00Z'));
+      await discoverRandom('movie', [], 'OR', 0, null, null, 1);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(calledUrl(fetchMock, 0).searchParams.get('primary_release_date.lte')).toBe('2030-01-01');
+    expect(calledUrl(fetchMock, 1).searchParams.get('primary_release_date.lte')).toBe('2030-01-02');
+  });
+
+  it('never asks for releases after today, even with a future year filter', async () => {
+    const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2030-06-15T12:00:00Z'));
+      await discoverRandom('tv', [], 'OR', 0, null, 2031, 1);
+      await discoverRandom('tv', [], 'OR', 0, null, 2020, 1);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(calledUrl(fetchMock, 0).searchParams.get('first_air_date.lte')).toBe('2030-06-15');
+    expect(calledUrl(fetchMock, 1).searchParams.get('first_air_date.lte')).toBe('2020-12-31');
   });
 
   it('caps the requested page and reported total_pages at 500', async () => {

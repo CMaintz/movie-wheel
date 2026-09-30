@@ -5,7 +5,8 @@ const TMDB_DIRECT_URL = 'https://api.themoviedb.org/3';
 const DEFAULT_LANGUAGE = 'en-US';
 const MAX_PAGE_LIMIT = 500;
 
-const TODAY = new Date().toISOString().split('T')[0];
+// Evaluated per request so a tab left open past midnight keeps using the current date
+const today = (): string => new Date().toISOString().split('T')[0];
 
 // In production (deployed on Vercel), route through our serverless proxy at /api/tmdb.
 // In development (localhost), call TMDB directly so you don't need `vercel dev`.
@@ -73,15 +74,6 @@ const tmdbGetBearer = async <T>(path: string, params: QueryParams = {}): Promise
   });
   if (!res.ok) throw new Error(`TMDB Bearer ${res.status}: ${path}`);
   return res.json();
-};
-
-const addAvailabilityFilters = (params: QueryParams, mediaType: 'movie' | 'tv'): void => {
-  if (mediaType === 'movie') {
-    params['primary_release_date.lte'] = TODAY;
-    params['with_release_type'] = '4|5|6';
-  } else {
-    params['first_air_date.lte'] = TODAY;
-  }
 };
 
 // --- Genres ---
@@ -201,12 +193,14 @@ export const discoverRandom = async (
   const dateGte = mediaType === 'movie' ? 'primary_release_date.gte' : 'first_air_date.gte';
   const dateLte = mediaType === 'movie' ? 'primary_release_date.lte' : 'first_air_date.lte';
 
+  const todayIso = today();
   if (yearFrom) params[dateGte] = `${yearFrom}-01-01`;
 
-  const yearToCap = yearTo ? `${yearTo}-12-31` : TODAY;
-  params[dateLte] = yearToCap < TODAY ? yearToCap : TODAY;
+  const yearToCap = yearTo ? `${yearTo}-12-31` : todayIso;
+  params[dateLte] = yearToCap < todayIso ? yearToCap : todayIso;
 
-  addAvailabilityFilters(params, mediaType);
+  // Movies: only digital/physical/TV releases, i.e. watchable at home rather than in cinemas
+  if (mediaType === 'movie') params.with_release_type = '4|5|6';
 
   const data = await tmdbGet<Omit<MediaResponse, 'results'> & { results: RawMedia[] }>(
     `/discover/${mediaType}`,
