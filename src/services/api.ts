@@ -5,7 +5,8 @@ const TMDB_DIRECT_URL = 'https://api.themoviedb.org/3';
 const DEFAULT_LANGUAGE = 'en-US';
 const MAX_PAGE_LIMIT = 500;
 
-const TODAY = new Date().toISOString().split('T')[0];
+// Evaluated per request so a tab left open past midnight keeps using the current date
+const today = (): string => new Date().toISOString().split('T')[0];
 
 // In production (deployed on Vercel), route through our serverless proxy at /api/tmdb.
 // In development (localhost), call TMDB directly so you don't need `vercel dev`.
@@ -15,9 +16,24 @@ const BASE_URL = USE_PROXY ? '/api/tmdb' : TMDB_DIRECT_URL;
 // --- Fetch helpers ---
 
 // URLSearchParams encodes | as %7C; TMDB expects literal pipes
+type QueryParams = Record<string, string | number | null | undefined>;
+
+// Raw TMDB list/detail items: movies carry title/release_date, TV carries name/first_air_date
+type RawMedia = Omit<Media, 'title' | 'media_type'> & {
+  title?: string;
+  name?: string;
+  first_air_date?: string;
+};
+
+type RawMediaDetails = Omit<MediaDetails, 'title' | 'media_type'> & {
+  title?: string;
+  name?: string;
+  first_air_date?: string;
+};
+
 const serializeParams = (p: URLSearchParams): string => p.toString().replace(/%7C/gi, '|');
 
-const buildParams = (extra: Record<string, any> = {}): string => {
+const buildParams = (extra: QueryParams = {}): string => {
   const p = new URLSearchParams();
   // Only include api_key when calling TMDB directly (dev mode).
   // In production the proxy injects it server-side.
@@ -31,13 +47,13 @@ const buildParams = (extra: Record<string, any> = {}): string => {
   return serializeParams(p);
 };
 
-const tmdbGet = async <T>(path: string, params: Record<string, any> = {}): Promise<T> => {
+const tmdbGet = async <T>(path: string, params: QueryParams = {}): Promise<T> => {
   const res = await fetch(`${BASE_URL}${path}?${buildParams(params)}`);
   if (!res.ok) throw new Error(`TMDB ${res.status}: ${path}`);
   return res.json();
 };
 
-const tmdbGetBearer = async <T>(path: string, params: Record<string, any> = {}): Promise<T> => {
+const tmdbGetBearer = async <T>(path: string, params: QueryParams = {}): Promise<T> => {
   const p = new URLSearchParams({ language: DEFAULT_LANGUAGE });
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null) p.set(k, String(v));
@@ -58,15 +74,6 @@ const tmdbGetBearer = async <T>(path: string, params: Record<string, any> = {}):
   });
   if (!res.ok) throw new Error(`TMDB Bearer ${res.status}: ${path}`);
   return res.json();
-};
-
-const addAvailabilityFilters = (params: Record<string, any>, mediaType: 'movie' | 'tv'): void => {
-  if (mediaType === 'movie') {
-    params['primary_release_date.lte'] = TODAY;
-    params['with_release_type'] = '4|5|6';
-  } else {
-    params['first_air_date.lte'] = TODAY;
-  }
 };
 
 // --- Genres ---
@@ -105,14 +112,14 @@ export const getMediaDetails = async (
   mediaType: 'movie' | 'tv',
   id: number
 ): Promise<MediaDetails> => {
-  const data = await tmdbGet<any>(`/${mediaType}/${id}`, {
+  const data = await tmdbGet<RawMediaDetails>(`/${mediaType}/${id}`, {
     append_to_response: 'credits,videos,external_ids',
   });
 
   return {
     ...data,
     media_type: mediaType,
-    title: data.title || data.name,
+    title: data.title ?? data.name ?? '',
     release_date: data.release_date || data.first_air_date,
   };
 };
@@ -172,7 +179,7 @@ export const discoverRandom = async (
 ): Promise<MediaResponse> => {
   const safePage = Math.min(page, MAX_PAGE_LIMIT);
   const separator = genreMode === 'AND' ? ',' : '|';
-  const params: Record<string, any> = {
+  const params: QueryParams = {
     page: safePage,
     sort_by: 'popularity.desc',
     with_original_language: 'en',
@@ -186,21 +193,26 @@ export const discoverRandom = async (
   const dateGte = mediaType === 'movie' ? 'primary_release_date.gte' : 'first_air_date.gte';
   const dateLte = mediaType === 'movie' ? 'primary_release_date.lte' : 'first_air_date.lte';
 
+  const todayIso = today();
   if (yearFrom) params[dateGte] = `${yearFrom}-01-01`;
 
-  const yearToCap = yearTo ? `${yearTo}-12-31` : TODAY;
-  params[dateLte] = yearToCap < TODAY ? yearToCap : TODAY;
+  const yearToCap = yearTo ? `${yearTo}-12-31` : todayIso;
+  params[dateLte] = yearToCap < todayIso ? yearToCap : todayIso;
 
-  addAvailabilityFilters(params, mediaType);
+  // Movies: only digital/physical/TV releases, i.e. watchable at home rather than in cinemas
+  if (mediaType === 'movie') params.with_release_type = '4|5|6';
 
-  const data = await tmdbGet<MediaResponse>(`/discover/${mediaType}`, params);
+  const data = await tmdbGet<Omit<MediaResponse, 'results'> & { results: RawMedia[] }>(
+    `/discover/${mediaType}`,
+    params
+  );
 
   if (data.total_pages > MAX_PAGE_LIMIT) data.total_pages = MAX_PAGE_LIMIT;
 
-  const results = data.results.map((item: any) => ({
+  const results: Media[] = data.results.map(item => ({
     ...item,
     media_type: mediaType,
-    title: item.title || item.name,
+    title: item.title ?? item.name ?? '',
   }));
 
   return { ...data, results };
