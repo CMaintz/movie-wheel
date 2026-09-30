@@ -30,8 +30,20 @@ const details = {
   runtime: 136,
   genres: [{ id: 28, name: 'Action' }],
   imdb_id: 'tt0133093',
-  credits: { cast: [{ id: 1, name: 'Keanu Reeves', character: 'Neo', profile_path: '' }], crew: [] },
-  videos: { results: [] },
+  credits: {
+    cast: [{ id: 1, name: 'Keanu Reeves', character: 'Neo', profile_path: '' }],
+    crew: [
+      { id: 2, name: 'Lana Wachowski', job: 'Director', profile_path: '', department: 'Directing' },
+      { id: 3, name: 'Lilly Wachowski', job: 'Director', profile_path: '', department: 'Directing' },
+      { id: 4, name: 'Joel Silver', job: 'Producer', profile_path: '', department: 'Production' },
+    ],
+  },
+  videos: {
+    results: [
+      { id: 'a', key: 'teaser1', name: 'Teaser', site: 'YouTube', type: 'Teaser' },
+      { id: 'b', key: 'vKQi3bBA1y8', name: 'Trailer', site: 'YouTube', type: 'Trailer' },
+    ],
+  },
   status: 'Released',
 } as MediaDetails;
 
@@ -56,6 +68,33 @@ describe('ResultModal', () => {
       'href',
       'https://www.imdb.com/title/tt0133093'
     );
+  });
+
+  it('shows the directors and links the YouTube trailer', async () => {
+    render(<ResultModal media={media} onClose={vi.fn()} onSpinAgain={vi.fn()} />);
+
+    expect(await screen.findByText('Lana Wachowski, Lilly Wachowski')).toBeInTheDocument();
+    expect(screen.getByText(/Directors:/)).toBeInTheDocument();
+    expect(screen.queryByText(/Joel Silver/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Trailer/ })).toHaveAttribute(
+      'href',
+      'https://www.youtube.com/watch?v=vKQi3bBA1y8'
+    );
+  });
+
+  it('shows who created a TV show and no trailer link when there is none', async () => {
+    const show: Media = { ...media, media_type: 'tv' };
+    vi.mocked(getMediaDetails).mockResolvedValue({
+      ...details,
+      media_type: 'tv',
+      created_by: [{ id: 9, name: 'Vince Gilligan' }],
+      videos: { results: [] },
+    } as MediaDetails);
+    render(<ResultModal media={show} onClose={vi.fn()} onSpinAgain={vi.fn()} />);
+
+    expect(await screen.findByText('Vince Gilligan')).toBeInTheDocument();
+    expect(screen.getByText(/Created by:/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Trailer/ })).not.toBeInTheDocument();
   });
 
   it('closes on Escape and spins again on request', async () => {
