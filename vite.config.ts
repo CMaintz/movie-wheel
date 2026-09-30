@@ -11,10 +11,10 @@ export default defineConfig({
     unstubGlobals: true,
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/main.tsx', 'src/test/**', 'src/**/*.test.{ts,tsx}', 'src/types.ts'],
+      include: ['src/**/*.{ts,tsx}', 'server/**/*.ts', 'api/**/*.ts'],
+      exclude: ['src/main.tsx', 'src/test/**', '**/*.test.{ts,tsx}', 'src/types.ts'],
       reporter: ['text', 'html', 'lcov'],
-      thresholds: { statements: 40, branches: 55, functions: 60, lines: 40 },
+      thresholds: { statements: 88, branches: 72, functions: 88, lines: 88 },
     },
   },
 })
