@@ -77,6 +77,7 @@ export interface SeriesDetails extends MediaDetails {
   last_air_date: string;
   number_of_seasons: number;
   number_of_episodes: number;
+  created_by?: Array<{ id: number; name: string }>;
 }
 
 export interface WheelSegmentData {

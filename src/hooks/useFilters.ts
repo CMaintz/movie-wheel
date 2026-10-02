@@ -7,7 +7,10 @@ export interface FilterState {
   mediaType: MediaTypeFilter;
   selectedGenres: string[];
   genreMode: GenreMode;
+  selectedCombos: string[];
   minRating: number;
+  minVotes: number;
+  language: string;
   yearFrom: number;
   yearTo: number;
 }
@@ -19,10 +22,16 @@ const DEFAULT_FILTERS: FilterState = {
   mediaType: 'both',
   selectedGenres: [],
   genreMode: 'OR',
+  selectedCombos: [],
   minRating: 6.0,
+  minVotes: 100,
+  language: 'en',
   yearFrom: 1995,
   yearTo: CURRENT_YEAR,
 };
+
+const toggle = (list: string[], item: string) =>
+  list.includes(item) ? list.filter(i => i !== item) : [...list, item];
 
 const loadFilters = (): FilterState => {
   try {
@@ -49,12 +58,11 @@ export const useFilters = () => {
   }, []);
 
   const toggleGenre = useCallback((genre: string) => {
-    setState(s => ({
-      ...s,
-      selectedGenres: s.selectedGenres.includes(genre)
-        ? s.selectedGenres.filter(g => g !== genre)
-        : [...s.selectedGenres, genre],
-    }));
+    setState(s => ({ ...s, selectedGenres: toggle(s.selectedGenres, genre) }));
+  }, []);
+
+  const toggleCombo = useCallback((combo: string) => {
+    setState(s => ({ ...s, selectedCombos: toggle(s.selectedCombos, combo) }));
   }, []);
 
   const setGenreMode = useCallback((genreMode: GenreMode) => {
@@ -63,6 +71,14 @@ export const useFilters = () => {
 
   const setMinRating = useCallback((minRating: number) => {
     setState(s => ({ ...s, minRating }));
+  }, []);
+
+  const setMinVotes = useCallback((minVotes: number) => {
+    setState(s => ({ ...s, minVotes }));
+  }, []);
+
+  const setLanguage = useCallback((language: string) => {
+    setState(s => ({ ...s, language }));
   }, []);
 
   const setYearFrom = useCallback((yearFrom: number) => {
@@ -81,8 +97,11 @@ export const useFilters = () => {
     state,
     setMediaType,
     toggleGenre,
+    toggleCombo,
     setGenreMode,
     setMinRating,
+    setMinVotes,
+    setLanguage,
     setYearFrom,
     setYearTo,
     resetFilters,

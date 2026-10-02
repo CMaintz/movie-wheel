@@ -20,7 +20,10 @@ const filters: FilterState = {
   mediaType: 'movie',
   selectedGenres: ['Drama'],
   genreMode: 'OR',
+  selectedCombos: [],
   minRating: 6,
+  minVotes: 100,
+  language: 'en',
   yearFrom: 1990,
   yearTo: 2000,
 };
@@ -41,7 +44,7 @@ describe('useWheel', () => {
     const { result } = renderHook(() => useWheel());
     await act(() => result.current.spin(filters, []));
 
-    expect(fetchWheelCandidates).toHaveBeenCalledWith('movie', [], 'OR', 6, 1990, 2000, 12, [], ['Drama']);
+    expect(fetchWheelCandidates).toHaveBeenCalledWith(filters, [], 12);
     expect(result.current.wheelState).toBe('spinning');
     expect(result.current.isSpinning).toBe(true);
     expect(result.current.winnerIndex).toBe(6);

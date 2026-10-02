@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildGenreClauses,
   discoverRandom,
   fetchWheelCandidates,
   getMediaDetails,
   getMergedGenres,
   getWatchProviders,
 } from './api';
+import type { DiscoverQuery } from './api';
+import type { FilterState } from '../hooks/useFilters';
 
 type Handler = (url: URL) => unknown;
 
@@ -17,6 +20,30 @@ const mockFetch = (handler: Handler) => {
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 };
+
+const query = (overrides: Partial<DiscoverQuery> = {}): DiscoverQuery => ({
+  genreIds: [],
+  genreMode: 'OR',
+  minRating: 0,
+  minVotes: 0,
+  language: '',
+  yearFrom: null,
+  yearTo: null,
+  ...overrides,
+});
+
+const filters = (overrides: Partial<FilterState> = {}): FilterState => ({
+  mediaType: 'movie',
+  selectedGenres: [],
+  genreMode: 'OR',
+  selectedCombos: [],
+  minRating: 0,
+  minVotes: 0,
+  language: '',
+  yearFrom: 1995,
+  yearTo: 2020,
+  ...overrides,
+});
 
 const calledUrl = (fetchMock: ReturnType<typeof mockFetch>, call = 0) =>
   new URL(String(fetchMock.mock.calls[call][0]));
@@ -53,7 +80,7 @@ describe('discoverRandom', () => {
   it('builds TMDB discover params and keeps genre pipes unencoded', async () => {
     const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
 
-    await discoverRandom('movie', [28, 12], 'OR', 6.5, 1990, 2000, 3);
+    await discoverRandom('movie', query({ genreIds: [28, 12], minRating: 6.5, yearFrom: 1990, yearTo: 2000 }), 3);
 
     const raw = String(fetchMock.mock.calls[0][0]);
     expect(raw).toContain('with_genres=28|12');
@@ -67,10 +94,22 @@ describe('discoverRandom', () => {
     expect(url.searchParams.get('language')).toBe('en-US');
   });
 
+  it('adds the vote-count floor and original language only when set', async () => {
+    const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
+
+    await discoverRandom('movie', query({ minVotes: 250, language: 'da' }), 1);
+    await discoverRandom('movie', query(), 1);
+
+    expect(calledUrl(fetchMock, 0).searchParams.get('vote_count.gte')).toBe('250');
+    expect(calledUrl(fetchMock, 0).searchParams.get('with_original_language')).toBe('da');
+    expect(calledUrl(fetchMock, 1).searchParams.has('vote_count.gte')).toBe(false);
+    expect(calledUrl(fetchMock, 1).searchParams.has('with_original_language')).toBe(false);
+  });
+
   it('uses comma-separated genres for AND mode and TV date fields', async () => {
     const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
 
-    await discoverRandom('tv', [18, 35], 'AND', 0, 2010, null, 1);
+    await discoverRandom('tv', query({ genreIds: [18, 35], genreMode: 'AND', yearFrom: 2010 }), 1);
 
     const url = calledUrl(fetchMock);
     expect(url.searchParams.get('with_genres')).toBe('18,35');
@@ -83,9 +122,9 @@ describe('discoverRandom', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       vi.setSystemTime(new Date('2030-01-01T12:00:00Z'));
-      await discoverRandom('movie', [], 'OR', 0, null, null, 1);
+      await discoverRandom('movie', query(), 1);
       vi.setSystemTime(new Date('2030-01-02T12:00:00Z'));
-      await discoverRandom('movie', [], 'OR', 0, null, null, 1);
+      await discoverRandom('movie', query(), 1);
     } finally {
       vi.useRealTimers();
     }
@@ -99,8 +138,8 @@ describe('discoverRandom', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       vi.setSystemTime(new Date('2030-06-15T12:00:00Z'));
-      await discoverRandom('tv', [], 'OR', 0, null, 2031, 1);
-      await discoverRandom('tv', [], 'OR', 0, null, 2020, 1);
+      await discoverRandom('tv', query({ yearTo: 2031 }), 1);
+      await discoverRandom('tv', query({ yearTo: 2020 }), 1);
     } finally {
       vi.useRealTimers();
     }
@@ -112,7 +151,7 @@ describe('discoverRandom', () => {
   it('caps the requested page and reported total_pages at 500', async () => {
     const fetchMock = mockFetch(() => ({ page: 500, results: [], total_pages: 9000, total_results: 1 }));
 
-    const res = await discoverRandom('movie', [], 'OR', 0, null, null, 1000);
+    const res = await discoverRandom('movie', query(), 1000);
 
     expect(calledUrl(fetchMock).searchParams.get('page')).toBe('500');
     expect(res.total_pages).toBe(500);
@@ -126,7 +165,7 @@ describe('discoverRandom', () => {
       results: [{ id: 1, name: 'Some Show', poster_path: '/x.jpg', vote_average: 8 }],
     }));
 
-    const res = await discoverRandom('tv', [], 'OR', 0, null, null, 1);
+    const res = await discoverRandom('tv', query(), 1);
 
     expect(res.results[0]).toMatchObject({ title: 'Some Show', media_type: 'tv' });
   });
@@ -169,7 +208,7 @@ describe('fetchWheelCandidates', () => {
       results: Array.from({ length: 20 }, (_, i) => rawMovie(i + 1, i % 4 === 0 ? null : `/p${i}.jpg`)),
     }));
 
-    const res = await fetchWheelCandidates('movie', [], 'OR', 0, null, null, 12);
+    const res = await fetchWheelCandidates(filters(), [], 12);
 
     expect(res).toHaveLength(12);
     expect(res.every(m => m.poster_path)).toBe(true);
@@ -184,7 +223,7 @@ describe('fetchWheelCandidates', () => {
       results: [rawMovie(1), rawMovie(2), rawMovie(3)],
     }));
 
-    const res = await fetchWheelCandidates('movie', [], 'OR', 0, null, null, 12);
+    const res = await fetchWheelCandidates(filters(), [], 12);
 
     expect(res).toHaveLength(12);
     expect(new Set(res.map(m => m.id))).toEqual(new Set([1, 2, 3]));
@@ -192,15 +231,121 @@ describe('fetchWheelCandidates', () => {
 
   it('returns nothing when TMDB has no matches', async () => {
     mockFetch(() => ({ page: 1, total_pages: 0, total_results: 0, results: [] }));
-    expect(await fetchWheelCandidates('both', [], 'OR', 9.5, null, null, 12)).toEqual([]);
+    expect(await fetchWheelCandidates(filters({ mediaType: 'both', minRating: 9.5 }), [], 12)).toEqual([]);
   });
 
   it('resolves selected genre names to per-media-type ids', async () => {
     const fetchMock = mockFetch(() => ({ page: 1, total_pages: 0, total_results: 0, results: [] }));
     const genres = [{ name: 'Drama', movieId: 18, tvId: 1818 }];
 
-    await fetchWheelCandidates('tv', [], 'OR', 0, null, null, 12, genres, ['Drama']);
+    await fetchWheelCandidates(filters({ mediaType: 'tv', selectedGenres: ['Drama'] }), genres, 12);
 
     expect(calledUrl(fetchMock).searchParams.get('with_genres')).toBe('1818');
+  });
+});
+
+describe('buildGenreClauses', () => {
+  const genres = [
+    { name: 'Action', movieId: 28, tvId: null },
+    { name: 'Action & Adventure', movieId: null, tvId: 10759 },
+    { name: 'Comedy', movieId: 35, tvId: 35 },
+    { name: 'Drama', movieId: 18, tvId: 18 },
+    { name: 'Romance', movieId: 10749, tvId: null },
+  ];
+
+  it('matches any genre when nothing is selected', () => {
+    expect(buildGenreClauses('movie', filters(), genres)).toEqual([{ genreIds: [], genreMode: 'OR' }]);
+  });
+
+  it('turns singles into one clause and each combo into its own AND clause', () => {
+    const clauses = buildGenreClauses(
+      'movie',
+      filters({ selectedGenres: ['Drama'], selectedCombos: ['Rom-Com', 'Action Comedy'] }),
+      genres
+    );
+    expect(clauses).toEqual([
+      { genreIds: [18], genreMode: 'OR' },
+      { genreIds: [10749, 35], genreMode: 'AND' },
+      { genreIds: [28, 35], genreMode: 'AND' },
+    ]);
+  });
+
+  it('uses the TV genre name for combos and drops combos TV has no genres for', () => {
+    const clauses = buildGenreClauses('tv', filters({ selectedCombos: ['Rom-Com', 'Action Comedy'] }), genres);
+    expect(clauses).toEqual([{ genreIds: [10759, 35], genreMode: 'AND' }]);
+  });
+
+  it('drops an AND clause when one of its genres is missing for the media type', () => {
+    const f = filters({ selectedGenres: ['Romance', 'Comedy'], genreMode: 'AND' });
+    expect(buildGenreClauses('tv', f, genres)).toEqual([]);
+    expect(buildGenreClauses('tv', { ...f, genreMode: 'OR' }, genres)).toEqual([
+      { genreIds: [35], genreMode: 'OR' },
+    ]);
+  });
+});
+
+describe('fetchWheelCandidates with combos', () => {
+  it('queries a combo as an AND of both genres', async () => {
+    const fetchMock = mockFetch(() => ({ page: 1, total_pages: 0, total_results: 0, results: [] }));
+    const genres = [
+      { name: 'Horror', movieId: 27, tvId: null },
+      { name: 'Comedy', movieId: 35, tvId: 35 },
+    ];
+
+    await fetchWheelCandidates(filters({ selectedCombos: ['Horror Comedy'] }), genres, 12);
+
+    expect(calledUrl(fetchMock).searchParams.get('with_genres')).toBe('27,35');
+  });
+
+  it('mixes titles from every selected combo, even when the first one fills the wheel', async () => {
+    const fetchMock = mockFetch(url => {
+      const base = url.searchParams.get('with_genres') === '27,35' ? 100 : 200;
+      return {
+        page: 1,
+        total_pages: 1,
+        total_results: 20,
+        results: Array.from({ length: 20 }, (_, i) => rawMovie(base + i)),
+      };
+    });
+    const genres = [
+      { name: 'Horror', movieId: 27, tvId: null },
+      { name: 'Comedy', movieId: 35, tvId: 35 },
+      { name: 'Romance', movieId: 10749, tvId: null },
+    ];
+
+    const res = await fetchWheelCandidates(
+      filters({ selectedCombos: ['Horror Comedy', 'Rom-Com'] }),
+      genres,
+      12
+    );
+
+    const requested = fetchMock.mock.calls.map((_, i) => calledUrl(fetchMock, i).searchParams.get('with_genres'));
+    expect(new Set(requested)).toEqual(new Set(['27,35', '10749,35']));
+    expect(res).toHaveLength(12);
+    expect(res.some(m => m.id < 200)).toBe(true);
+    expect(res.some(m => m.id >= 200)).toBe(true);
+  });
+
+  it('mixes movies and TV when both are selected', async () => {
+    mockFetch(url => ({
+      page: 1,
+      total_pages: 1,
+      total_results: 20,
+      results: Array.from({ length: 20 }, (_, i) => rawMovie((url.pathname.endsWith('/tv') ? 500 : 0) + i)),
+    }));
+
+    const res = await fetchWheelCandidates(filters({ mediaType: 'both' }), [], 12);
+
+    expect(new Set(res.map(m => m.media_type))).toEqual(new Set(['movie', 'tv']));
+  });
+
+  it('skips fetching when no selection can match the media type', async () => {
+    const fetchMock = mockFetch(() => ({}));
+    const genres = [{ name: 'Romance', movieId: 10749, tvId: null }];
+
+    const res = await fetchWheelCandidates(filters({ mediaType: 'tv', selectedGenres: ['Romance'] }), genres, 12);
+
+    expect(res).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

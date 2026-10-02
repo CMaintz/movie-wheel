@@ -15,8 +15,9 @@ Live: https://movie-wheel.cmaintz-site.workers.dev
 ## What it does
 
 - Spin-the-wheel picker: a 12-slot canvas wheel with ease-out animation that lands on a randomly chosen title
-- Filters: media type (movie / TV / both), genres (match any or all), release year range and minimum rating, saved in `localStorage`
-- Result details: runtime or season count, genres, cast, and TMDB/IMDb links
+- Filters: media type (movie / TV / both), genres (match any or all), release year range, minimum rating, minimum vote count and original language, saved in `localStorage`
+- Genre combos: Rom-Com, Horror Comedy, Action Thriller and a dozen more. A combo only matches titles that have both genres, and you can mix combos with plain genres
+- Result details: runtime or season count, genres, director (or creator for TV), cast, trailer, and TMDB/IMDb links
 - Watch providers: streaming, rent and buy options for the title in your region (detected from your time zone, and you can change it)
 - Server-side TMDB proxy: in production the browser only calls `/api/tmdb/*`, and the API key stays on the server
 
@@ -47,7 +48,7 @@ src/
 ├── components/   Wheel (canvas), FilterPanel, ResultModal, WatchProviders
 ├── hooks/        useWheel (spin state machine), useFilters (persisted filter state)
 ├── services/     api.ts: TMDB calls, candidate selection
-└── utils/        wheelMath (spin/landing angles), easing, region detection
+└── utils/        wheelMath (spin/landing angles), genreCombos, easing, region detection
 server/           tmdbProxy.ts: platform-neutral proxy core
 worker/           Cloudflare Worker entry (serves dist/ + proxies /api/*)
 api/              Vercel function adapter
@@ -88,7 +89,9 @@ Optionally add `TMDB_READ_TOKEN` as a second secret. Without it, watch-provider 
 - Rate limiting is approximate. On Cloudflare it uses the Workers rate-limit binding, which counts per Cloudflare location, not globally. On Vercel, or without the binding, it falls back to an in-memory counter per function instance. It limits casual abuse; it doesn't enforce a hard global quota.
 - The origin check only affects browsers. It stops other websites from using the proxy from their visitors' browsers. Scripts that don't send an `Origin` header can still call the allowed TMDB paths, up to the rate limit.
 - Caching: successful responses send `Cache-Control: max-age=300, s-maxage=300`, so browsers (and Vercel's CDN) cache them. The Worker doesn't use the Cloudflare Cache API.
-- Discovery is limited to English-language titles sorted by popularity, and only the first 100 result pages are sampled.
+- Discovery sorts by popularity and only samples the first 100 result pages.
+- TMDB can't do "(A and B) or C" in one query, so each spin queries every genre selection and combo separately (up to six) and mixes the results. Same for movies vs TV when "Both" is picked.
+- TV has no Romance, Horror or Thriller genres on TMDB, so combos using them are greyed out for TV.
 - The wheel is a canvas animation with no text alternative for screen readers. Not great, I know.
 
 ## License

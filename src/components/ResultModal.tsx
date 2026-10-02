@@ -4,7 +4,7 @@ import { getMediaDetails, getWatchProviders } from '../services/api';
 import type { WatchProvidersResult } from '../services/api';
 import { getStoredRegion } from '../utils/region';
 import WatchProviders from './WatchProviders';
-import { X, Star, Clock, Calendar, Film, Tv, ExternalLink, RotateCw } from 'lucide-react';
+import { X, Star, Clock, Calendar, Film, Tv, ExternalLink, RotateCw, Play } from 'lucide-react';
 
 interface ResultModalProps {
   media: Media;
@@ -56,6 +56,11 @@ const ResultModal: React.FC<ResultModalProps> = ({ media, onClose, onSpinAgain, 
   const imdbId = details?.imdb_id || details?.external_ids?.imdb_id;
   const cast = details?.credits?.cast?.slice(0, 6) || [];
   const genreNames = details?.genres?.map(g => g.name) || [];
+  const makers = isMovie
+    ? details?.credits?.crew?.filter(c => c.job === 'Director').map(c => c.name) || []
+    : (details as SeriesDetails | null)?.created_by?.map(c => c.name) || [];
+  const makersLabel = isMovie ? (makers.length > 1 ? 'Directors' : 'Director') : 'Created by';
+  const trailer = details?.videos?.results?.find(v => v.site === 'YouTube' && v.type === 'Trailer');
 
   const formatRuntime = (mins: number) => {
     const h = Math.floor(mins / 60);
@@ -149,6 +154,13 @@ const ResultModal: React.FC<ResultModalProps> = ({ media, onClose, onSpinAgain, 
                   </p>
                 )}
 
+                {makers.length > 0 && (
+                  <p className="text-sm text-white/60 mb-3">
+                    <span className="font-semibold text-white">{makersLabel}: </span>
+                    <span className="text-white/80">{makers.join(', ')}</span>
+                  </p>
+                )}
+
                 {/* Cast */}
                 {cast.length > 0 && (
                   <div className="mb-4">
@@ -182,6 +194,16 @@ const ResultModal: React.FC<ResultModalProps> = ({ media, onClose, onSpinAgain, 
               >
                 TMDB <ExternalLink size={13} />
               </a>
+              {trailer && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${trailer.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors"
+                >
+                  <Play size={13} /> Trailer
+                </a>
+              )}
               {imdbId && (
                 <a
                   href={`https://www.imdb.com/title/${imdbId}`}
