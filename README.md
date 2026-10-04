@@ -6,7 +6,7 @@
 
 I spun it out of my [movie-db-webapp](https://github.com/CMaintz/movie-db-webapp) into its own repo, which is why the history starts with a single import commit.
 
-Live: https://movie-wheel.cmaintz-site.workers.dev
+Live: https://moviewheel.maintz.dev
 
 ![The wheel mid-spin, with the filter sidebar](docs/wheel.png)
 

@@ -3,14 +3,21 @@
   "name": "movie-wheel",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-30",
-  // Static SPA from `vite build`; only /api/* reaches the Worker code.
+  // Static SPA from `vite build`. Every request runs the Worker first so the
+  // workers.dev redirect also covers pages; the Worker hands non-API paths to ASSETS.
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": true
   },
+  // Custom domain: Cloudflare creates the DNS record and TLS certificate on deploy.
+  // Kept on so the old *.workers.dev link still reaches the redirect below.
+  "workers_dev": true,
+  "routes": [{ "pattern": "moviewheel.maintz.dev", "custom_domain": true }],
   "vars": {
+    // Requests to *.workers.dev are 301-redirected here.
+    "CANONICAL_HOST": "moviewheel.maintz.dev",
     // Cross-origin callers allowed besides the Worker's own origin (comma-separated).
     "ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:4173"
   },

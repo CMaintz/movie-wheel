@@ -10,6 +10,7 @@ export interface Env {
   TMDB_API_KEY?: string;
   TMDB_READ_TOKEN?: string;
   ALLOWED_ORIGINS?: string;
+  CANONICAL_HOST?: string;
   TMDB_RATE_LIMITER?: RateLimit;
 }
 
@@ -24,7 +25,13 @@ const rateLimiterFor = (env: Env): RateLimiter => {
 
 export default {
   async fetch(request, env) {
-    const { pathname } = new URL(request.url);
+    const url = new URL(request.url);
+    // The old *.workers.dev address keeps working by redirecting to the custom domain.
+    if (env.CANONICAL_HOST && url.hostname.endsWith('.workers.dev')) {
+      url.hostname = env.CANONICAL_HOST;
+      return Response.redirect(url.toString(), 301);
+    }
+    const { pathname } = url;
     if (pathname.startsWith('/api/')) {
       return handleTmdbProxy(request, {
         apiKey: env.TMDB_API_KEY ?? '',
