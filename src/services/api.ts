@@ -10,8 +10,8 @@ const MAX_PAGE_LIMIT = 500;
 // Evaluated per request so a tab left open past midnight keeps using the current date
 const today = (): string => new Date().toISOString().split('T')[0];
 
-// In production (deployed on Vercel), route through our serverless proxy at /api/tmdb.
-// In development (localhost), call TMDB directly so you don't need `vercel dev`.
+// In production, route through the Worker proxy at /api/tmdb.
+// In development (localhost), call TMDB directly so you don't need `wrangler dev`.
 const USE_PROXY = import.meta.env.PROD;
 const BASE_URL = USE_PROXY ? '/api/tmdb' : TMDB_DIRECT_URL;
 
