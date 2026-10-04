@@ -60,6 +60,19 @@ describe('useWheel', () => {
     expect(result.current.wheelState).toBe('stopped');
   });
 
+  it('dismisses the result but keeps the titles on the wheel', async () => {
+    vi.mocked(fetchWheelCandidates).mockResolvedValue(Array.from({ length: 12 }, (_, i) => movie(i + 1, `/p${i}.jpg`)));
+    const { result } = renderHook(() => useWheel());
+    await act(() => result.current.spin(filters, []));
+    act(() => result.current.onSpinComplete());
+
+    act(() => result.current.dismiss());
+    expect(result.current.wheelState).toBe('idle');
+    expect(result.current.winnerMedia).toBeNull();
+    expect(result.current.segments[0].id).toBe(1);
+    expect(result.current.images.current).toHaveLength(12);
+  });
+
   it('reports an empty result without spinning', async () => {
     vi.mocked(fetchWheelCandidates).mockResolvedValue([]);
 

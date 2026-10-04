@@ -14,7 +14,7 @@ Live: https://movie-wheel.cmaintz-site.workers.dev
 
 ## What it does
 
-- Spin-the-wheel picker: a 12-slot canvas wheel with ease-out animation that lands on a randomly chosen title
+- Spin-the-wheel picker: a 12-slot game-show wheel on canvas (marquee bulbs, pegs and a flapper that ticks as they pass), with each title dressed as a VHS sleeve or DVD case. Spin with the button, the hub or <kbd>Space</kbd>
 - Filters: media type (movie / TV / both), genres (match any or all), release year range, minimum rating, minimum vote count and original language, saved in `localStorage`
 - Genre combos: Rom-Com, Horror Comedy, Action Thriller and a dozen more. A combo only matches titles that have both genres, and you can mix combos with plain genres
 - Result details: runtime or season count, genres, director (or creator for TV), cast, trailer, and TMDB/IMDb links
@@ -91,7 +91,7 @@ Optionally add `TMDB_READ_TOKEN` as a second secret. Without it, watch-provider 
 - Discovery sorts by popularity and only samples the first 100 result pages.
 - TMDB can't do "(A and B) or C" in one query, so each spin queries every genre selection and combo separately (up to six) and mixes the results. Same for movies vs TV when "Both" is picked.
 - TV has no Romance, Horror or Thriller genres on TMDB, so combos using them are greyed out for TV.
-- The wheel is a canvas animation with no text alternative for screen readers. Not great, I know.
+- The wheel itself is a canvas. Screen readers get its list of titles and a live announcement of the pick, but not the animation.
 
 ## License
 

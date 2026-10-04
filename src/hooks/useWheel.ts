@@ -86,6 +86,13 @@ export const useWheel = () => {
     setWheelState('stopped');
   }, []);
 
+  // Close the result but leave the titles on the wheel, so you can see what else was in the running
+  const dismiss = useCallback(() => {
+    setWheelState('idle');
+    setWinnerIndex(null);
+    setWinnerMedia(null);
+  }, []);
+
   const reset = useCallback(() => {
     setWheelState('idle');
     setSegments(createEmptySegments());
@@ -105,6 +112,7 @@ export const useWheel = () => {
     images: imagesRef,
     spin,
     onSpinComplete,
+    dismiss,
     reset,
     isSpinning: wheelState === 'spinning',
     isLoading: wheelState === 'loading',
