@@ -54,4 +54,12 @@ describe('worker', () => {
     expect(dev.status).toBe(200);
     expect(evil.status).toBe(403);
   });
+
+  it('redirects the workers.dev host to the canonical host, keeping path and query', async () => {
+    const { env, assets } = makeEnv({ CANONICAL_HOST: 'moviewheel.example' });
+    const res = await call('/api/tmdb/movie/603?x=1', env);
+    expect(res.status).toBe(301);
+    expect(res.headers.get('Location')).toBe('https://moviewheel.example/api/tmdb/movie/603?x=1');
+    expect(assets).not.toHaveBeenCalled();
+  });
 });
