@@ -91,11 +91,52 @@ describe('App', () => {
     expect(screen.queryByText('Plot of 4')).not.toBeInTheDocument();
   });
 
-  it('toggles the wheel display mode', async () => {
+  it('switches the box style and remembers it', async () => {
     const user = userEvent.setup();
     renderApp();
 
-    await user.click(screen.getByTitle('Switch to full bleed mode'));
-    expect(screen.getByTitle('Switch to DVD case mode')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'VHS' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'DVD' }));
+    expect(screen.getByRole('button', { name: 'DVD' })).toHaveAttribute('aria-pressed', 'true');
+    expect(localStorage.getItem('moviewheel_case_style')).toBe('dvd');
+  });
+
+  it('spins from the hub and the Space key, but not while typing', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: 'Spin the wheel' }));
+    expect(await screen.findByRole('dialog', { name: 'Movie 4' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    const yearInput = screen.getAllByRole('spinbutton')[0];
+    yearInput.focus();
+    await user.keyboard(' ');
+    expect(fetchWheelCandidates).toHaveBeenCalledOnce();
+
+    yearInput.blur();
+    await user.keyboard(' ');
+    expect(await screen.findByRole('dialog', { name: 'Movie 4' })).toBeInTheDocument();
+    expect(fetchWheelCandidates).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('status')).toHaveTextContent('The wheel picked Movie 4.');
+  });
+
+  it('opens the mobile filter drawer and closes it with Escape', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: /^Filters/ }));
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Filters' })).not.toBeInTheDocument();
+  });
+
+  it('shows an error when no titles match', async () => {
+    vi.mocked(fetchWheelCandidates).mockResolvedValue([]);
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/No movies found/);
   });
 });

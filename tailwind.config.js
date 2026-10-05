@@ -6,20 +6,23 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ['Bungee', 'system-ui', 'sans-serif'],
+      },
       colors: {
         primary: {
-          DEFAULT: '#2196f3',
-          light: '#64b5f6',
-          dark: '#1976d2',
+          DEFAULT: '#e63946',
+          light: '#ff7b84',
+          dark: '#b5121f',
         },
         secondary: {
-          DEFAULT: '#ffb300',
-          light: '#ffca28',
-          dark: '#ff8f00',
+          DEFAULT: '#f4b400',
+          light: '#ffd23f',
+          dark: '#d18f00',
         },
         bg: {
-          default: '#121212',
-          paper: '#1e1e1e',
+          default: '#0d0a12',
+          paper: '#18131f',
         },
         text: {
           secondary: '#b3b3b3',

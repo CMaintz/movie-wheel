@@ -1,5 +1,5 @@
-// Platform-neutral TMDB proxy: uses only the Fetch API (Request/Response), so the same code runs
-// behind the Cloudflare Worker entry and the Vercel function adapter.
+// Platform-neutral TMDB proxy: uses only the Fetch API (Request/Response), so it runs behind
+// the Cloudflare Worker entry and is testable under Node.
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const PROXY_PREFIX = '/api/tmdb';
