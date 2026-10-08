@@ -1,2 +1,4 @@
 User-agent: *
+# Content Signals (https://contentsignals.org/): allow search indexing, AI answers that cite this site, and AI training.
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
 Allow: /
