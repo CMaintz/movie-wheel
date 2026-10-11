@@ -15,6 +15,7 @@ Live: https://moviewheel.maintz.dev
 ## What it does
 
 - Spin-the-wheel picker: a 12-slot game-show wheel on canvas (marquee bulbs, pegs and a flapper that ticks as they pass), with each title dressed as a VHS sleeve or DVD case. Spin with the button, the hub or <kbd>Space</kbd>
+- 3D wheel (default): a three.js scene with brass, lacquer and plastic materials, real lighting and shadows, and bloom on the marquee bulbs. It loads on demand, and the 2D wheel stays available as a switch and as the fallback without WebGL
 - Filters: media type (movie / TV / both), genres (match any or all), release year range, minimum rating, minimum vote count and original language, saved in `localStorage`
 - Genre combos: Rom-Com, Horror Comedy, Action Thriller and a dozen more. A combo only matches titles that have both genres, and you can mix combos with plain genres
 - Result details: runtime or season count, genres, director (or creator for TV), cast, trailer, and TMDB/IMDb links

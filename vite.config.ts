@@ -17,7 +17,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}', 'server/**/*.ts', 'worker/**/*.ts'],
-      exclude: ['src/main.tsx', 'src/test/**', '**/*.test.{ts,tsx}', 'src/types.ts'],
+      // WebGL scene code can't run under jsdom; it's verified in a real browser instead
+      exclude: ['src/main.tsx', 'src/test/**', '**/*.test.{ts,tsx}', 'src/types.ts', 'src/three/**', 'src/components/Wheel3D.tsx'],
       reporter: ['text', 'html', 'lcov'],
       thresholds: { statements: 88, branches: 72, functions: 88, lines: 88 },
     },

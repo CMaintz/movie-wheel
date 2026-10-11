@@ -11,6 +11,15 @@ import {
 } from './services/api';
 import type { Media, MediaDetails } from './types';
 
+// WebGL doesn't exist in jsdom; the 3D scene is checked in a real browser instead.
+vi.mock('./components/Wheel3D', () => ({
+  default: ({ onUnsupported }: { onUnsupported: () => void }) => (
+    <div data-testid="wheel-3d">
+      <button onClick={onUnsupported}>Simulate missing WebGL</button>
+    </div>
+  ),
+}));
+
 vi.mock('./services/api', () => ({
   fetchWheelCandidates: vi.fn(),
   getMediaDetails: vi.fn(),
@@ -57,6 +66,7 @@ const renderApp = () =>
 
 describe('App', () => {
   beforeEach(() => {
+    localStorage.setItem('moviewheel_render_mode', '2d');
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext as never);
     vi.stubGlobal('Image', InstantImage);
     // Jump every animation frame to the end of the spin.
@@ -119,6 +129,29 @@ describe('App', () => {
     expect(await screen.findByRole('dialog', { name: 'Movie 4' })).toBeInTheDocument();
     expect(fetchWheelCandidates).toHaveBeenCalledTimes(2);
     expect(screen.getByRole('status')).toHaveTextContent('The wheel picked Movie 4.');
+  });
+
+  it('defaults to the 3D wheel and falls back to 2D without WebGL', async () => {
+    localStorage.removeItem('moviewheel_render_mode');
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(await screen.findByTestId('wheel-3d')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '3D' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Simulate missing WebGL' }));
+    expect(screen.queryByTestId('wheel-3d')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Spin the wheel' })).toBeInTheDocument();
+  });
+
+  it('remembers a switch to the 2D wheel', async () => {
+    localStorage.removeItem('moviewheel_render_mode');
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: '2D' }));
+    expect(screen.queryByTestId('wheel-3d')).not.toBeInTheDocument();
+    expect(localStorage.getItem('moviewheel_render_mode')).toBe('2d');
   });
 
   it('opens the mobile filter drawer and closes it with Escape', async () => {
