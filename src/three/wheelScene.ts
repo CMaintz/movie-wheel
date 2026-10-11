@@ -1,13 +1,14 @@
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { TAU } from '../utils/wheelMath';
 import { boxGeometry, bulbAngles, bulbLit, wedgeColor } from '../utils/wheelArt';
 import type { CaseStyle, LightMode } from '../utils/wheelArt';
 import { drawCurtain, drawFront, drawHubCap, drawSpine } from './boxTextures';
+import { brushedRoughness, buildStageEnvironment, orangePeelNormal, woodMaps } from './materials';
+import { ShutterRenderPass } from './ShutterRenderPass';
 
 // World units: the wheel face has radius 1. Angles follow the 2D wheel's convention
 // (clockwise from 12 o'clock, segment i starts at rotation + i * segmentAngle), so the
@@ -15,6 +16,8 @@ import { drawCurtain, drawFront, drawHubCap, drawSpine } from './boxTextures';
 
 const FACE_Z = 0.03;
 const BOX_DEPTH: Record<CaseStyle, number> = { vhs: 0.075, dvd: 0.035 };
+const SHUTTER_MS = 9; // roughly a 180-degree shutter at 60 fps
+const MAX_BLUR_SAMPLES = 14;
 
 export interface FrameState {
   rotation: number;
@@ -22,15 +25,13 @@ export interface FrameState {
   lights: LightMode;
   timeMs: number;
   winnerIndex: number | null;
+  angularVelocity: number; // rad/ms, drives the motion blur
 }
 
 export interface BoxContent {
   image: HTMLImageElement | null | undefined;
   title: string;
 }
-
-const brass = () =>
-  new THREE.MeshPhysicalMaterial({ color: '#d4a53a', metalness: 1, roughness: 0.28, clearcoat: 0.3 });
 
 /** Canvas-angle (clockwise from 12 o'clock) to a 3D angle (counter-clockwise from +x). */
 const toWorldAngle = (canvasAngle: number) => Math.PI / 2 - canvasAngle;
@@ -68,10 +69,25 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#07050a');
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const envMap = buildStageEnvironment(renderer);
   scene.environment = envMap;
-  scene.environmentIntensity = 0.3;
+  scene.environmentIntensity = 0.45;
+
+  // Coarse pointers are usually phones: skip depth of field and keep motion blur cheap
+  const lowPower = window.matchMedia?.('(pointer: coarse)').matches === true;
+
+  const brushed = brushedRoughness();
+  const wood = woodMaps();
+  const peel = orangePeelNormal();
+  const brass = () =>
+    new THREE.MeshPhysicalMaterial({
+      color: '#d4a53a',
+      metalness: 1,
+      roughness: 0.55, // scaled by the brushed streaks
+      roughnessMap: brushed,
+      anisotropy: 0.6,
+      clearcoat: 0.2,
+    });
 
   const camera = new THREE.PerspectiveCamera(27, 1, 0.1, 50);
   camera.position.set(2.3, 1.05, 5.0);
@@ -99,7 +115,7 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
   curtainTex.repeat.set(2, 1);
   const backdrop = new THREE.Mesh(
     new THREE.PlaneGeometry(14, 7),
-    new THREE.MeshStandardMaterial({ map: curtainTex, color: '#6a6a6a', roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ map: curtainTex, color: '#a0a0a0', roughness: 0.95 }),
   );
   backdrop.position.set(0, 0, -0.9);
   backdrop.receiveShadow = true;
@@ -111,7 +127,15 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
 
   const backing = new THREE.Mesh(
     new THREE.CylinderGeometry(1.26, 1.26, 0.12, 128),
-    new THREE.MeshPhysicalMaterial({ color: '#170d08', roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.2 }),
+    new THREE.MeshPhysicalMaterial({
+      map: wood.map,
+      normalMap: wood.normalMap,
+      normalScale: new THREE.Vector2(0.4, 0.4),
+      color: '#8a6a55',
+      roughness: 0.5,
+      clearcoat: 1,
+      clearcoatRoughness: 0.18,
+    }),
   );
   backing.rotation.x = Math.PI / 2;
   backing.position.z = -0.12;
@@ -149,7 +173,7 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
 
   const wheelBack = new THREE.Mesh(
     new THREE.CylinderGeometry(1.03, 1.03, 0.07, 128),
-    new THREE.MeshStandardMaterial({ color: '#2a1a0e', roughness: 0.6 }),
+    new THREE.MeshStandardMaterial({ map: wood.map, normalMap: wood.normalMap, color: '#6b5444', roughness: 0.65 }),
   );
   wheelBack.rotation.x = Math.PI / 2;
   wheelBack.position.z = -0.035;
@@ -175,7 +199,9 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
       color,
       roughness: 0.42,
       clearcoat: 1,
-      clearcoatRoughness: 0.12,
+      clearcoatRoughness: 0.1,
+      clearcoatNormalMap: peel,
+      clearcoatNormalScale: new THREE.Vector2(0.18, 0.18),
     });
     wedgeMats.push(mat);
     wedgeBase.push(color.clone());
@@ -192,7 +218,7 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
 
   const dividerGeo = new THREE.BoxGeometry(0.8, 0.014, 0.022);
   const pegGeo = new THREE.CylinderGeometry(0.017, 0.017, 0.08, 16);
-  const chrome = new THREE.MeshStandardMaterial({ color: '#e8eaee', metalness: 1, roughness: 0.15 });
+  const chrome = new THREE.MeshStandardMaterial({ color: '#e8eaee', metalness: 1, roughness: 0.12 });
   for (let i = 0; i < segmentCount; i++) {
     const a = toWorldAngle(i * segmentAngle);
     const divider = new THREE.Mesh(dividerGeo, brassMat);
@@ -286,7 +312,13 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
 
   // --- Post-processing: bloom for the bulbs and highlights only ---
   const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
+  const shutter = new ShutterRenderPass(scene, camera);
+  composer.addPass(shutter);
+  // Depth of field: focused on the hub, so the far side of the tilted wheel softens
+  // slightly and the curtain falls well out of focus.
+  const bokeh = new BokehPass(scene, camera, { focus: camera.position.length(), aperture: 0.0028, maxblur: 0.007 });
+  bokeh.enabled = !lowPower;
+  composer.addPass(bokeh);
   // Threshold above 1 so only the emissive bulbs (and hard specular glints) bloom
   const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.7, 0.35, 1.1);
   composer.addPass(bloom);
@@ -311,7 +343,15 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
   };
 
   const render = (state: FrameState) => {
-    wheel.rotation.z = -state.rotation;
+    // Motion blur: spread the shutter across the last few ms of rotation
+    const blurArc = Math.abs(state.angularVelocity) * SHUTTER_MS;
+    shutter.samples = Math.min(lowPower ? 3 : MAX_BLUR_SAMPLES, Math.max(1, Math.ceil(blurArc * 60)));
+    // Jitter the sub-frame times each frame so the samples blend into smooth blur instead of steps
+    const jitter = Math.random();
+    shutter.setSubframe = (index, count) => {
+      const lag = count === 1 ? 0 : (1 - (index + jitter) / count) * state.angularVelocity * SHUTTER_MS;
+      wheel.rotation.z = -(state.rotation - lag);
+    };
     flapperPivot.rotation.z = -state.flapper;
 
     bulbs.forEach((mat, i) => {
@@ -337,7 +377,8 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
   const dispose = () => {
     disposeObject(scene);
     envMap.dispose();
-    pmrem.dispose();
+    shutter.dispose();
+    bokeh.dispose();
     composer.dispose();
     renderer.dispose();
   };

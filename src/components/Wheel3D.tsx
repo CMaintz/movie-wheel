@@ -88,6 +88,7 @@ const Wheel3D: React.FC<Wheel3DProps> = ({
     const reduced = prefersReducedMotion();
     let active = true;
     let last = performance.now();
+    let lastAngle = angleRef.current;
 
     const frame = (now: number) => {
       if (!active) return;
@@ -107,6 +108,11 @@ const Wheel3D: React.FC<Wheel3DProps> = ({
         angleRef.current += (now - last) * LOADING_SPEED;
       }
       if (reduced) lights = 'idle';
+      const dt = Math.max(now - last, 1);
+      const angularVelocity = reduced ? 0 : (angleRef.current - lastAngle) / dt;
+      // A finished spin wraps the angle back into [0, TAU); don't read that jump as speed
+      const velocity = Math.abs(angularVelocity) > 0.2 ? 0 : angularVelocity;
+      lastAngle = angleRef.current;
       last = now;
 
       scene.render({
@@ -115,6 +121,7 @@ const Wheel3D: React.FC<Wheel3DProps> = ({
         lights,
         timeMs: reduced ? 0 : now,
         winnerIndex: winnerRef.current,
+        angularVelocity: velocity,
       });
       requestAnimationFrame(frame);
     };
