@@ -125,23 +125,26 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
   const cabinet = new THREE.Group();
   scene.add(cabinet);
 
-  const backing = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.26, 1.26, 0.12, 128),
-    new THREE.MeshPhysicalMaterial({
-      map: wood.map,
-      normalMap: wood.normalMap,
-      normalScale: new THREE.Vector2(0.4, 0.4),
-      color: '#8a6a55',
-      roughness: 0.5,
-      clearcoat: 1,
-      clearcoatRoughness: 0.18,
-    }),
-  );
-  backing.rotation.x = Math.PI / 2;
-  backing.position.z = -0.12;
-  backing.castShadow = true;
-  backing.receiveShadow = true;
-  cabinet.add(backing);
+  // Only the visible parts of the cabinet: the ring of wood around the wheel and its outer
+  // edge. The disc behind the wheel and the back are never on screen.
+  const woodMat = new THREE.MeshPhysicalMaterial({
+    map: wood.map,
+    normalMap: wood.normalMap,
+    normalScale: new THREE.Vector2(0.4, 0.4),
+    color: '#8a6a55',
+    roughness: 0.5,
+    clearcoat: 1,
+    clearcoatRoughness: 0.18,
+  });
+  const cabinetFace = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.26, 128, 1), woodMat);
+  cabinetFace.position.z = -0.06;
+  cabinetFace.receiveShadow = true;
+  cabinet.add(cabinetFace);
+  const cabinetEdge = new THREE.Mesh(new THREE.CylinderGeometry(1.26, 1.26, 0.12, 128, 1, true), woodMat);
+  cabinetEdge.rotation.x = Math.PI / 2;
+  cabinetEdge.position.z = -0.12;
+  cabinetEdge.castShadow = true;
+  cabinet.add(cabinetEdge);
 
   const frame = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.075, 32, 160), brass());
   frame.position.z = -0.01;
@@ -171,14 +174,15 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
   const wheel = new THREE.Group();
   scene.add(wheel);
 
-  const wheelBack = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.03, 1.03, 0.07, 128),
-    new THREE.MeshStandardMaterial({ map: wood.map, normalMap: wood.normalMap, color: '#6b5444', roughness: 0.65 }),
+  // The wheel's thickness only shows as its edge band; the slices cover the front
+  const wheelEdge = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.03, 1.03, 0.07, 128, 1, true),
+    new THREE.MeshStandardMaterial({ color: '#2a1a0e', roughness: 0.6 }),
   );
-  wheelBack.rotation.x = Math.PI / 2;
-  wheelBack.position.z = -0.035;
-  wheelBack.castShadow = true;
-  wheel.add(wheelBack);
+  wheelEdge.rotation.x = Math.PI / 2;
+  wheelEdge.position.z = -0.035;
+  wheelEdge.castShadow = true;
+  wheel.add(wheelEdge);
 
   const wedgeMats: THREE.MeshPhysicalMaterial[] = [];
   const wedgeBase: THREE.Color[] = [];
@@ -206,6 +210,7 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
     wedgeMats.push(mat);
     wedgeBase.push(color.clone());
     const wedge = new THREE.Mesh(geo, mat);
+    wedge.castShadow = true; // the slices now form the wheel's silhouette on the curtain
     wedge.receiveShadow = true;
     wheel.add(wedge);
   }
