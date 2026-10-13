@@ -164,7 +164,7 @@ export const buildStageEnvironment = (renderer: THREE.WebGLRenderer) => {
   panel(16, 3, '#7a0a14', 3, [0, -4, -8]); // red curtain bounce
   // A row of small practical bulbs: these are what make brass sparkle
   for (let i = 0; i < 9; i++) {
-    panel(0.35, 0.35, '#fff1c9', 40, [-6 + i * 1.5, 4.2, 7]);
+    panel(0.35, 0.35, '#fff1c9', 16, [-6 + i * 1.5, 4.2, 7]);
   }
 
   const pmrem = new THREE.PMREMGenerator(renderer);

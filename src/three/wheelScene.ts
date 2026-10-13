@@ -18,6 +18,8 @@ const FACE_Z = 0.03;
 const BOX_DEPTH: Record<CaseStyle, number> = { vhs: 0.075, dvd: 0.035 };
 const SHUTTER_MS = 9; // roughly a 180-degree shutter at 60 fps
 const MAX_BLUR_SAMPLES = 14;
+const HUB_BASE_Z = FACE_Z;
+const HUB_TOP_Z = 0.13;
 
 export interface FrameState {
   rotation: number;
@@ -281,17 +283,40 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
     });
   };
 
-  // --- Fixed hub: brass boss with an engraved cap ---
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.23, 0.11, 64), brass());
+  // --- Fixed hub: a low turned-brass boss with a flange, a waisted body and a rolled bezel
+  // around the cap, so it reads as a machined part from the camera's side angle ---
+  const hubProfile = [
+    [0.255, HUB_BASE_Z],
+    [0.258, HUB_BASE_Z + 0.012],
+    [0.245, HUB_BASE_Z + 0.022],
+    [0.215, HUB_BASE_Z + 0.03],
+    [0.2, HUB_BASE_Z + 0.042],
+    [0.198, HUB_BASE_Z + 0.062],
+    [0.21, HUB_BASE_Z + 0.072],
+    [0.21, HUB_TOP_Z - 0.006],
+    [0.2, HUB_TOP_Z],
+    [0, HUB_TOP_Z],
+  ].map(([r, z]) => new THREE.Vector2(r, z));
+  const hub = new THREE.Mesh(new THREE.LatheGeometry(hubProfile, 96), brass());
   hub.rotation.x = Math.PI / 2;
-  hub.position.z = 0.1;
   hub.castShadow = true;
   scene.add(hub);
+  const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.182, 0.012, 16, 96), brass());
+  bezel.position.z = HUB_TOP_Z + 0.002;
+  scene.add(bezel);
   const capTex = new THREE.CanvasTexture(drawHubCap());
   capTex.colorSpace = THREE.SRGBColorSpace;
-  const capMat = new THREE.MeshStandardMaterial({ map: capTex, emissive: '#ffffff', emissiveMap: capTex, emissiveIntensity: 0.35, roughness: 0.4 });
-  const cap = new THREE.Mesh(new THREE.CircleGeometry(0.165, 64), capMat);
-  cap.position.z = 0.1561;
+  const capMat = new THREE.MeshPhysicalMaterial({
+    map: capTex,
+    emissive: '#ffffff',
+    emissiveMap: capTex,
+    emissiveIntensity: 0.25,
+    roughness: 0.35,
+    clearcoat: 1,
+    clearcoatRoughness: 0.1,
+  });
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(0.172, 64), capMat);
+  cap.position.z = HUB_TOP_Z + 0.001;
   scene.add(cap);
 
   // --- Flapper: pivots on the frame at 12 o'clock, its tip among the pegs ---
@@ -325,7 +350,7 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
   bokeh.enabled = !lowPower;
   composer.addPass(bokeh);
   // Threshold above 1 so only the emissive bulbs (and hard specular glints) bloom
-  const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.7, 0.35, 1.1);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.35, 0.2, 1.1);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -342,8 +367,8 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
       const p = v.clone().project(camera);
       return { x: ((p.x + 1) / 2) * width, y: ((1 - p.y) / 2) * height };
     };
-    const centre = project(new THREE.Vector3(0, 0, 0.156));
-    const edge = project(new THREE.Vector3(0.23, 0, 0.156));
+    const centre = project(new THREE.Vector3(0, 0, HUB_TOP_Z));
+    const edge = project(new THREE.Vector3(0.21, 0, HUB_TOP_Z));
     return { x: centre.x, y: centre.y, r: Math.hypot(edge.x - centre.x, edge.y - centre.y) };
   };
 
@@ -360,7 +385,7 @@ export const createWheelScene = (canvas: HTMLCanvasElement, segmentCount: number
     flapperPivot.rotation.z = -state.flapper;
 
     bulbs.forEach((mat, i) => {
-      mat.emissiveIntensity = bulbLit(i, state.timeMs, state.lights) ? 5 : 0.02;
+      mat.emissiveIntensity = bulbLit(i, state.timeMs, state.lights) ? 2.2 : 0.02;
     });
 
     const showWinner = state.lights === 'stopped' && state.winnerIndex !== null;
