@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getMergedGenres } from './services/api';
 import { useFilters } from './hooks/useFilters';
@@ -9,7 +9,29 @@ import ResultModal from './components/ResultModal';
 import type { CaseStyle } from './utils/wheelArt';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
+// three.js is a big download, so the 3D wheel loads on demand
+const Wheel3D = lazy(() => import('./components/Wheel3D'));
+
+type RenderMode = '3d' | '2d';
+
 const CASE_STYLE_KEY = 'moviewheel_case_style';
+const RENDER_MODE_KEY = 'moviewheel_render_mode';
+
+const loadRenderMode = (): RenderMode => {
+  try {
+    return localStorage.getItem(RENDER_MODE_KEY) === '2d' ? '2d' : '3d';
+  } catch {
+    return '3d';
+  }
+};
+
+const store = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage unavailable (private mode): the choice just won't persist
+  }
+};
 
 const loadCaseStyle = (): CaseStyle => {
   try {
@@ -28,6 +50,7 @@ function App() {
   const wheel = useWheel();
   const [showFilters, setShowFilters] = useState(false);
   const [caseStyle, setCaseStyle] = useState<CaseStyle>(loadCaseStyle);
+  const [renderMode, setRenderMode] = useState<RenderMode>(loadRenderMode);
 
   const { data: genres = [] } = useQuery({
     queryKey: ['genres'],
@@ -42,11 +65,12 @@ function App() {
 
   const chooseCaseStyle = (style: CaseStyle) => {
     setCaseStyle(style);
-    try {
-      localStorage.setItem(CASE_STYLE_KEY, style);
-    } catch {
-      // storage unavailable (private mode): the choice just won't persist
-    }
+    store(CASE_STYLE_KEY, style);
+  };
+
+  const chooseRenderMode = (mode: RenderMode) => {
+    setRenderMode(mode);
+    store(RENDER_MODE_KEY, mode);
   };
 
   const handleSpin = useCallback(() => {
@@ -93,6 +117,17 @@ function App() {
         ? `The wheel picked ${wheel.winnerMedia?.title}.`
         : '';
 
+  const wheelProps = {
+    segments: wheel.segments,
+    wheelState: wheel.wheelState,
+    winnerIndex: wheel.winnerIndex,
+    images: wheel.images,
+    onSpinComplete: wheel.onSpinComplete,
+    caseStyle,
+    onHubClick: handleSpin,
+    hubDisabled: busy,
+  };
+
   const filterPanelProps = {
     filters: filters.state,
     genres,
@@ -120,16 +155,13 @@ function App() {
       <main className="stage flex-1 flex flex-col items-center justify-center px-4 py-6 gap-5 overflow-y-auto">
         <h1 className="marquee-title text-3xl md:text-4xl text-center">Movie Wheel</h1>
 
-        <Wheel
-          segments={wheel.segments}
-          wheelState={wheel.wheelState}
-          winnerIndex={wheel.winnerIndex}
-          images={wheel.images}
-          onSpinComplete={wheel.onSpinComplete}
-          caseStyle={caseStyle}
-          onHubClick={handleSpin}
-          hubDisabled={busy}
-        />
+        {renderMode === '3d' ? (
+          <Suspense fallback={<div className="w-full max-w-[680px] aspect-square rounded-2xl bg-black/40 animate-pulse" />}>
+            <Wheel3D {...wheelProps} onUnsupported={() => setRenderMode('2d')} />
+          </Suspense>
+        ) : (
+          <Wheel {...wheelProps} />
+        )}
 
         <p className="sr-only" role="status" aria-live="polite">{status}</p>
 
@@ -174,6 +206,21 @@ function App() {
                 }`}
               >
                 {style.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          <div role="group" aria-label="Wheel rendering" className="flex gap-1 bg-bg-paper border border-white/10 rounded-full p-1">
+            {(['3d', '2d'] as RenderMode[]).map(mode => (
+              <button
+                key={mode}
+                onClick={() => chooseRenderMode(mode)}
+                aria-pressed={renderMode === mode}
+                className={`px-3 py-1 text-xs font-bold tracking-widest rounded-full transition-colors ${
+                  renderMode === mode ? 'bg-secondary text-black' : 'text-white/60 hover:text-white'
+                }`}
+              >
+                {mode.toUpperCase()}
               </button>
             ))}
           </div>
