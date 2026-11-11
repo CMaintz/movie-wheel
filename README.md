@@ -14,7 +14,8 @@ Live: https://moviewheel.maintz.dev
 
 ## What it does
 
-- Spin-the-wheel picker: a 12-slot game-show wheel on canvas (marquee bulbs, pegs and a flapper that ticks as they pass), with each title dressed as a VHS sleeve or DVD case. Spin with the button, the hub or <kbd>Space</kbd>
+- Spin-the-wheel picker: a 12-slot game-show wheel on canvas (marquee bulbs, pegs and a flapper that ticks as they pass), in a cartoon or a classic look, with each title dressed as a VHS sleeve or DVD case. Spin with the button, the wheel or <kbd>Space</kbd>, and skip to the ending the same way
+- Fresh picks: titles already on the wheel this session stay off later spins, and short films are left out
 - Filters: media type (movie / TV / both), genres (match any or all), release year range, minimum rating, minimum vote count and original language, saved in `localStorage`
 - Genre combos: Rom-Com, Horror Comedy, Action Thriller and a dozen more. A combo only matches titles that have both genres, and you can mix combos with plain genres
 - Result details: runtime or season count, genres, director (or creator for TV), cast, trailer, and TMDB/IMDb links
