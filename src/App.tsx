@@ -33,7 +33,7 @@ const storeChoice = (key: string, value: string) => {
 };
 
 /** Time on the stopped wheel, winner lit, before the result covers it. */
-const REVEAL_DELAY = 600;
+const REVEAL_DELAY = 1200;
 
 const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { configure, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -10,6 +10,9 @@ import {
   getWatchProviders,
 } from './services/api';
 import type { Media, MediaDetails } from './types';
+
+// The result waits a beat after the wheel lands, longer than findBy's default 1s.
+configure({ asyncUtilTimeout: 2500 });
 
 vi.mock('./services/api', () => ({
   fetchWheelCandidates: vi.fn(),
@@ -64,7 +67,6 @@ const renderApp = () =>
 describe('App', () => {
   beforeEach(() => {
     drawnImages.length = 0;
-    localStorage.clear();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext as never);
     vi.stubGlobal('Image', InstantImage);
     // Jump every animation frame to the end of the spin.
