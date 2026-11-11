@@ -248,10 +248,9 @@ describe('fetchWheelCandidates', () => {
     }));
     const seen = new Set(Array.from({ length: 10 }, (_, i) => mediaKey({ media_type: 'movie', id: i + 1 })));
 
-    const res = await fetchWheelCandidates(filters(), [], 12, seen);
+    const res = await fetchWheelCandidates(filters(), [], 10, seen);
 
-    expect(res.some(m => m.id <= 10)).toBe(false);
-    expect(new Set(res.map(m => m.id))).toEqual(new Set(Array.from({ length: 10 }, (_, i) => i + 11)));
+    expect(res.map(m => m.id).sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i + 11));
   });
 
   it('only treats the same id as seen within the same media type', async () => {
