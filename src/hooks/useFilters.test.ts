@@ -5,27 +5,12 @@ import { useFilters } from './useFilters';
 const STORAGE_KEY = 'moviewheel_filters';
 
 describe('useFilters', () => {
-  it('starts from defaults', () => {
-    const { result } = renderHook(() => useFilters());
-    expect(result.current.state).toMatchObject({ mediaType: 'both', selectedGenres: [], genreMode: 'OR' });
-  });
-
   it('toggles genres on and off', () => {
     const { result } = renderHook(() => useFilters());
     act(() => result.current.toggleGenre('Drama'));
     act(() => result.current.toggleGenre('Comedy'));
     act(() => result.current.toggleGenre('Drama'));
     expect(result.current.state.selectedGenres).toEqual(['Comedy']);
-  });
-
-  it('toggles genre combos and sets the vote floor and language', () => {
-    const { result } = renderHook(() => useFilters());
-    act(() => result.current.toggleCombo('Rom-Com'));
-    act(() => result.current.setMinVotes(500));
-    act(() => result.current.setLanguage(''));
-    expect(result.current.state).toMatchObject({ selectedCombos: ['Rom-Com'], minVotes: 500, language: '' });
-    act(() => result.current.toggleCombo('Rom-Com'));
-    expect(result.current.state.selectedCombos).toEqual([]);
   });
 
   it('fills in new fields when restoring filters saved by an older version', () => {

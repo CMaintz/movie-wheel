@@ -36,6 +36,7 @@ export const useWheel = () => {
   const [winnerIndex, setWinnerIndex] = useState<number | null>(null);
   const [winnerMedia, setWinnerMedia] = useState<Media | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [skipRequested, setSkipRequested] = useState(false);
   const imagesRef = useRef<(HTMLImageElement | null)[]>([]);
   const mediaListRef = useRef<Media[]>([]);
   // Titles that have been on the wheel since the page loaded, kept off later spins
@@ -46,6 +47,7 @@ export const useWheel = () => {
     allGenres: MergedGenre[]
   ) => {
     setError(null);
+    setSkipRequested(false);
     setWheelState('loading');
     setWinnerIndex(null);
     setWinnerMedia(null);
@@ -68,11 +70,10 @@ export const useWheel = () => {
         posterUrl: m.poster_path ? `${TMDB_IMG}${m.poster_path}` : null,
         mediaType: m.media_type,
       }));
+      // The wheel bakes posters when the segments change, so the images must be in place first:
+      // setting segments before the preload finishes paints the previous spin's posters.
+      imagesRef.current = await preloadImages(newSegments.map(s => s.posterUrl));
       setSegments(newSegments);
-
-      // Preload images
-      const images = await preloadImages(newSegments.map(s => s.posterUrl));
-      imagesRef.current = images;
 
       // Pick winner
       const winner = Math.floor(Math.random() * movies.length);
@@ -85,6 +86,8 @@ export const useWheel = () => {
       setWheelState('idle');
     }
   }, []);
+
+  const skip = useCallback(() => setSkipRequested(true), []);
 
   const onSpinComplete = useCallback(() => {
     setWheelState('stopped');
@@ -116,6 +119,8 @@ export const useWheel = () => {
     images: imagesRef,
     spin,
     onSpinComplete,
+    skip,
+    skipRequested,
     dismiss,
     reset,
     isSpinning: wheelState === 'spinning',

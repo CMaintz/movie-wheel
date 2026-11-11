@@ -5,10 +5,8 @@ const mod = (value: number, n: number): number => ((value % n) + n) % n;
 export type CaseStyle = 'vhs' | 'dvd';
 export type LightMode = 'idle' | 'loading' | 'spinning' | 'stopped';
 
-// Saturated game-show wedges, deep enough that the box art stays the focal point.
-export const WEDGE_COLORS = ['#c1121f', '#e89a00', '#1d6fb8', '#7b2cbf', '#23894a', '#e05a0b'];
-
-export const wedgeColor = (index: number): string => WEDGE_COLORS[index % WEDGE_COLORS.length];
+/** How the wheel is drawn: `cel` is the inked cartoon look, `real` the painted wood and brass one. */
+export type WheelSkin = 'cel' | 'real';
 
 /** Width/height of the front cover: a VHS sleeve is tall and narrow, a DVD keepcase wider. */
 export const CASE_ASPECT: Record<CaseStyle, number> = { vhs: 0.56, dvd: 0.7 };
@@ -50,10 +48,6 @@ export const flapperAngle = (rotation: number, segmentAngle: number, maxDeflecti
   if (frac < SNAP_BACK) return -maxDeflection * (1 - frac / SNAP_BACK) * 0.35;
   return 0;
 };
-
-/** How many pegs have passed the pointer since rotation 0; a change means one tick. */
-export const pegsPassed = (rotation: number, segmentAngle: number): number =>
-  Math.floor(rotation / segmentAngle);
 
 /** Marquee bulb pattern: a slow alternating blink at rest, a fast chase while busy, all-on flashing at the end. */
 export const bulbLit = (index: number, timeMs: number, mode: LightMode): boolean => {

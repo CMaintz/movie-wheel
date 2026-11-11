@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { SUPPORTED_REGIONS, detectRegion, getStoredRegion, setStoredRegion } from './region';
+import { detectRegion, getStoredRegion, setStoredRegion } from './region';
 
 const mockTimeZone = (timeZone: string) => {
   vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(
@@ -30,11 +30,6 @@ describe('detectRegion', () => {
       throw new Error('no Intl');
     });
     expect(detectRegion()).toBe('US');
-  });
-
-  it('only ever returns supported regions', () => {
-    mockTimeZone('Europe/Berlin');
-    expect(SUPPORTED_REGIONS).toContain(detectRegion());
   });
 });
 

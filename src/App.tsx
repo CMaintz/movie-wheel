@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getMergedGenres } from './services/api';
 import { useFilters } from './hooks/useFilters';
@@ -6,26 +6,27 @@ import { useWheel } from './hooks/useWheel';
 import Wheel from './components/Wheel';
 import FilterPanel from './components/FilterPanel';
 import ResultModal from './components/ResultModal';
-import type { CaseStyle } from './utils/wheelArt';
+import type { CaseStyle, WheelSkin } from './utils/wheelArt';
+import type { Media } from './types';
+import { REVEAL_DELAY } from './timing';
+import { prefersReducedMotion } from './utils/motion';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
-// three.js is a big download, so the 3D wheel loads on demand
-const Wheel3D = lazy(() => import('./components/Wheel3D'));
-
-type RenderMode = '3d' | '2d';
-
 const CASE_STYLE_KEY = 'moviewheel_case_style';
-const RENDER_MODE_KEY = 'moviewheel_render_mode';
+const SKIN_KEY = 'moviewheel_skin';
+const SKIN_LABELS: Record<WheelSkin, string> = { cel: 'Cartoon', real: 'Classic' };
 
-const loadRenderMode = (): RenderMode => {
+/** Reads a stored choice, falling back when it's missing, unknown or storage is unavailable. */
+const loadChoice = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
   try {
-    return localStorage.getItem(RENDER_MODE_KEY) === '2d' ? '2d' : '3d';
+    const stored = localStorage.getItem(key);
+    return options.find(o => o === stored) ?? fallback;
   } catch {
-    return '3d';
+    return fallback;
   }
 };
 
-const store = (key: string, value: string) => {
+const storeChoice = (key: string, value: string) => {
   try {
     localStorage.setItem(key, value);
   } catch {
@@ -33,24 +34,43 @@ const store = (key: string, value: string) => {
   }
 };
 
-const loadCaseStyle = (): CaseStyle => {
-  try {
-    return localStorage.getItem(CASE_STYLE_KEY) === 'dvd' ? 'dvd' : 'vhs';
-  } catch {
-    return 'vhs';
-  }
-};
 
 const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A'].includes(target.tagName) || target.isContentEditable);
 
+interface ChoiceGroupProps<T extends string> {
+  label: string;
+  options: T[];
+  value: T;
+  onChange: (value: T) => void;
+  text: (value: T) => string;
+}
+
+const ChoiceGroup = <T extends string>({ label, options, value, onChange, text }: ChoiceGroupProps<T>) => (
+  <div role="group" aria-label={label} className="flex gap-1 bg-bg-paper border border-white/10 rounded-full p-1">
+    {options.map(option => (
+      <button
+        key={option}
+        onClick={() => onChange(option)}
+        aria-pressed={value === option}
+        className={`px-3 py-1 text-xs font-bold tracking-widest rounded-full transition-colors ${
+          value === option ? 'bg-secondary text-black' : 'text-white/60 hover:text-white'
+        }`}
+      >
+        {text(option)}
+      </button>
+    ))}
+  </div>
+);
+
 function App() {
   const filters = useFilters();
   const wheel = useWheel();
   const [showFilters, setShowFilters] = useState(false);
-  const [caseStyle, setCaseStyle] = useState<CaseStyle>(loadCaseStyle);
-  const [renderMode, setRenderMode] = useState<RenderMode>(loadRenderMode);
+  const [caseStyle, setCaseStyle] = useState<CaseStyle>(() => loadChoice(CASE_STYLE_KEY, ['vhs', 'dvd'], 'vhs'));
+  const [skin, setSkin] = useState<WheelSkin>(() => loadChoice(SKIN_KEY, ['cel', 'real'], 'cel'));
+  const [revealedPick, setRevealedPick] = useState<Media | null>(null);
 
   const { data: genres = [] } = useQuery({
     queryKey: ['genres'],
@@ -60,17 +80,27 @@ function App() {
   });
 
   const busy = wheel.isSpinning || wheel.isLoading;
-  const showResult = wheel.wheelState === 'stopped' && wheel.winnerMedia !== null;
+  // A reduced-motion spin is already short, so there's nothing to skip
+  const canSkip = wheel.isSpinning && !wheel.skipRequested && !prefersReducedMotion();
+  const stopped = wheel.wheelState === 'stopped' && wheel.winnerMedia !== null;
+  const showResult = stopped && revealedPick === wheel.winnerMedia;
   const activeFilterCount = filters.state.selectedGenres.length + filters.state.selectedCombos.length;
+
+  useEffect(() => {
+    if (!stopped) return;
+    const pick = wheel.winnerMedia;
+    const id = window.setTimeout(() => setRevealedPick(pick), REVEAL_DELAY);
+    return () => window.clearTimeout(id);
+  }, [stopped, wheel.winnerMedia]);
 
   const chooseCaseStyle = (style: CaseStyle) => {
     setCaseStyle(style);
-    store(CASE_STYLE_KEY, style);
+    storeChoice(CASE_STYLE_KEY, style);
   };
 
-  const chooseRenderMode = (mode: RenderMode) => {
-    setRenderMode(mode);
-    store(RENDER_MODE_KEY, mode);
+  const chooseSkin = (next: WheelSkin) => {
+    setSkin(next);
+    storeChoice(SKIN_KEY, next);
   };
 
   const handleSpin = useCallback(() => {
@@ -79,25 +109,22 @@ function App() {
     setShowFilters(false);
   }, [busy, wheel, filters.state, genres]);
 
-  const handleSpinAgain = () => {
-    wheel.reset();
-    // Small delay so wheel resets visually before spinning again
-    setTimeout(() => {
-      wheel.spin(filters.state, genres);
-    }, 100);
-  };
+  // Spinning again keeps the last titles on the wheel until the new ones arrive
+  const handleSpinAgain = handleSpin;
 
-  // Space spins, unless focus is on a control that already uses the key or a dialog is open
+  // Space spins, or skips ahead mid-spin, unless focus is on a control that already uses the key
+  // or a dialog is open
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return;
-      if (showFilters || showResult) return;
+      if (showFilters || stopped) return;
       e.preventDefault();
-      handleSpin();
+      if (canSkip) wheel.skip();
+      else handleSpin();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSpin, showFilters, showResult]);
+  }, [handleSpin, showFilters, stopped, wheel, canSkip]);
 
   // Escape closes the mobile filter drawer
   useEffect(() => {
@@ -113,20 +140,9 @@ function App() {
     ? 'Finding titles…'
     : wheel.isSpinning
       ? 'Spinning…'
-      : showResult
+      : stopped
         ? `The wheel picked ${wheel.winnerMedia?.title}.`
         : '';
-
-  const wheelProps = {
-    segments: wheel.segments,
-    wheelState: wheel.wheelState,
-    winnerIndex: wheel.winnerIndex,
-    images: wheel.images,
-    onSpinComplete: wheel.onSpinComplete,
-    caseStyle,
-    onHubClick: handleSpin,
-    hubDisabled: busy,
-  };
 
   const filterPanelProps = {
     filters: filters.state,
@@ -155,13 +171,18 @@ function App() {
       <main className="stage flex-1 flex flex-col items-center justify-center px-4 py-6 gap-5 overflow-y-auto">
         <h1 className="marquee-title text-3xl md:text-4xl text-center">Movie Wheel</h1>
 
-        {renderMode === '3d' ? (
-          <Suspense fallback={<div className="w-full max-w-[680px] aspect-square rounded-2xl bg-black/40 animate-pulse" />}>
-            <Wheel3D {...wheelProps} onUnsupported={() => setRenderMode('2d')} />
-          </Suspense>
-        ) : (
-          <Wheel {...wheelProps} />
-        )}
+        <Wheel
+          segments={wheel.segments}
+          wheelState={wheel.wheelState}
+          winnerIndex={wheel.winnerIndex}
+          images={wheel.images}
+          onSpinComplete={wheel.onSpinComplete}
+          caseStyle={caseStyle}
+          skin={skin}
+          onHubClick={handleSpin}
+          hubDisabled={busy}
+          skipRequested={wheel.skipRequested}
+        />
 
         <p className="sr-only" role="status" aria-live="polite">{status}</p>
 
@@ -173,8 +194,8 @@ function App() {
 
         <div className="flex flex-col items-center gap-3">
           <button
-            onClick={handleSpin}
-            disabled={busy}
+            onClick={canSkip ? wheel.skip : handleSpin}
+            disabled={busy && !canSkip}
             className="flex items-center justify-center gap-2 min-w-[11rem] px-8 py-3 bg-primary hover:bg-primary-dark text-white text-xl font-display tracking-wide rounded-full border-2 border-secondary shadow-[0_0_24px_rgba(230,57,70,0.45)] transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
           >
             {wheel.isLoading ? (
@@ -183,7 +204,7 @@ function App() {
                 Loading…
               </>
             ) : wheel.isSpinning ? (
-              'Spinning…'
+              canSkip ? 'Skip' : 'Spinning…'
             ) : (
               'Spin!'
             )}
@@ -193,37 +214,22 @@ function App() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <ChoiceGroup
+            label="Wheel look"
+            options={['cel', 'real'] as WheelSkin[]}
+            value={skin}
+            onChange={chooseSkin}
+            text={s => SKIN_LABELS[s]}
+          />
           {/* Case style: how the titles are dressed on the wheel */}
-          <div role="group" aria-label="Box style" className="flex gap-1 bg-bg-paper border border-white/10 rounded-full p-1">
-            {(['vhs', 'dvd'] as CaseStyle[]).map(style => (
-              <button
-                key={style}
-                onClick={() => chooseCaseStyle(style)}
-                aria-pressed={caseStyle === style}
-                className={`px-3 py-1 text-xs font-bold tracking-widest rounded-full transition-colors ${
-                  caseStyle === style ? 'bg-secondary text-black' : 'text-white/60 hover:text-white'
-                }`}
-              >
-                {style.toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div role="group" aria-label="Wheel rendering" className="flex gap-1 bg-bg-paper border border-white/10 rounded-full p-1">
-            {(['3d', '2d'] as RenderMode[]).map(mode => (
-              <button
-                key={mode}
-                onClick={() => chooseRenderMode(mode)}
-                aria-pressed={renderMode === mode}
-                className={`px-3 py-1 text-xs font-bold tracking-widest rounded-full transition-colors ${
-                  renderMode === mode ? 'bg-secondary text-black' : 'text-white/60 hover:text-white'
-                }`}
-              >
-                {mode.toUpperCase()}
-              </button>
-            ))}
-          </div>
+          <ChoiceGroup
+            label="Box style"
+            options={['vhs', 'dvd'] as CaseStyle[]}
+            value={caseStyle}
+            onChange={chooseCaseStyle}
+            text={s => s.toUpperCase()}
+          />
 
           {/* Mobile filter toggle */}
           <button
