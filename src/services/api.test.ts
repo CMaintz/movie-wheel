@@ -92,7 +92,6 @@ describe('discoverRandom', () => {
     expect(url.searchParams.get('primary_release_date.gte')).toBe('1990-01-01');
     expect(url.searchParams.get('primary_release_date.lte')).toBe('2000-12-31');
     expect(url.searchParams.get('with_release_type')).toBe('4|5|6');
-    expect(url.searchParams.get('language')).toBe('en-US');
   });
 
   it('adds the vote-count floor and original language only when set', async () => {

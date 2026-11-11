@@ -49,10 +49,6 @@ export const flapperAngle = (rotation: number, segmentAngle: number, maxDeflecti
   return 0;
 };
 
-/** How many pegs have passed the pointer since rotation 0; a change means one tick. */
-export const pegsPassed = (rotation: number, segmentAngle: number): number =>
-  Math.floor(rotation / segmentAngle);
-
 /** Marquee bulb pattern: a slow alternating blink at rest, a fast chase while busy, all-on flashing at the end. */
 export const bulbLit = (index: number, timeMs: number, mode: LightMode): boolean => {
   switch (mode) {

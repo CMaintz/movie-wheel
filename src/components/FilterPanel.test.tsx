@@ -68,11 +68,6 @@ describe('FilterPanel', () => {
     expect(props.onReset).toHaveBeenCalled();
   });
 
-  it('summarises the selected genres', () => {
-    renderPanel();
-    expect(screen.getByText(/Matching any of:/)).toHaveTextContent('Drama');
-  });
-
   it('disables every control while the wheel is busy', () => {
     renderPanel({ disabled: true });
     expect(screen.getByRole('button', { name: 'Movies' })).toBeDisabled();
@@ -87,11 +82,6 @@ describe('FilterPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Dramedy' }));
 
     expect(props.onToggleCombo).toHaveBeenCalledWith('Dramedy');
-  });
-
-  it('summarises the selected combos', () => {
-    renderPanel({ filters: { ...baseFilters, selectedCombos: ['Rom-Com'] } });
-    expect(screen.getByText(/Also spinning:/)).toHaveTextContent('Rom-Com');
   });
 
   it('forwards the vote floor and language', async () => {

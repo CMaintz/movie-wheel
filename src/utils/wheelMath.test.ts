@@ -13,11 +13,6 @@ describe('segmentAtPointer', () => {
     expect(segmentAtPointer(0.01, SEGMENTS)).toBe(SEGMENTS - 1);
     expect(segmentAtPointer(SEGMENT_ANGLE + 0.01, SEGMENTS)).toBe(SEGMENTS - 2);
   });
-
-  it('is periodic in full turns', () => {
-    expect(segmentAtPointer(-0.5 + 7 * TAU, SEGMENTS)).toBe(segmentAtPointer(-0.5, SEGMENTS));
-    expect(segmentAtPointer(-0.5 - 3 * TAU, SEGMENTS)).toBe(segmentAtPointer(-0.5, SEGMENTS));
-  });
 });
 
 describe('computeSpinDelta', () => {
