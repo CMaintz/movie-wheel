@@ -6,6 +6,8 @@ import { GENRE_COMBOS, resolveCombo } from '../utils/genreCombos';
 const TMDB_DIRECT_URL = 'https://api.themoviedb.org/3';
 const DEFAULT_LANGUAGE = 'en-US';
 const MAX_PAGE_LIMIT = 500;
+// The Academy's cut-off for a short film
+const MIN_FEATURE_RUNTIME = 40;
 
 // Evaluated per request so a tab left open past midnight keeps using the current date
 const today = (): string => new Date().toISOString().split('T')[0];
@@ -211,7 +213,11 @@ export const discoverRandom = async (
   params[dateLte] = yearToCap < todayIso ? yearToCap : todayIso;
 
   // Movies: only digital/physical/TV releases, i.e. watchable at home rather than in cinemas
-  if (mediaType === 'movie') params.with_release_type = '4|5|6';
+  if (mediaType === 'movie') {
+    params.with_release_type = '4|5|6';
+    // Movies only: a runtime floor on TV would drop every sitcom
+    params['with_runtime.gte'] = MIN_FEATURE_RUNTIME;
+  }
 
   const data = await tmdbGet<Omit<MediaResponse, 'results'> & { results: RawMedia[] }>(
     `/discover/${mediaType}`,

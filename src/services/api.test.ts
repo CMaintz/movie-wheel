@@ -115,6 +115,15 @@ describe('discoverRandom', () => {
     expect(url.searchParams.get('with_genres')).toBe('18,35');
     expect(url.searchParams.get('first_air_date.gte')).toBe('2010-01-01');
     expect(url.searchParams.has('with_release_type')).toBe(false);
+    expect(url.searchParams.has('with_runtime.gte')).toBe(false);
+  });
+
+  it('leaves short films out of movie results', async () => {
+    const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
+
+    await discoverRandom('movie', query(), 1);
+
+    expect(calledUrl(fetchMock).searchParams.get('with_runtime.gte')).toBe('40');
   });
 
   it('uses the current date for the release cut-off, not the date the module loaded', async () => {
