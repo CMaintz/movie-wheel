@@ -6,16 +6,28 @@ import { useWheel } from './hooks/useWheel';
 import Wheel from './components/Wheel';
 import FilterPanel from './components/FilterPanel';
 import ResultModal from './components/ResultModal';
-import type { CaseStyle } from './utils/wheelArt';
+import type { CaseStyle, WheelSkin } from './utils/wheelArt';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
 const CASE_STYLE_KEY = 'moviewheel_case_style';
+const SKIN_KEY = 'moviewheel_skin';
+const SKIN_LABELS: Record<WheelSkin, string> = { cel: 'Cartoon', real: 'Classic' };
 
-const loadCaseStyle = (): CaseStyle => {
+/** Reads a stored choice, falling back when it's missing, unknown or storage is unavailable. */
+const loadChoice = <T extends string>(key: string, options: readonly T[], fallback: T): T => {
   try {
-    return localStorage.getItem(CASE_STYLE_KEY) === 'dvd' ? 'dvd' : 'vhs';
+    const stored = localStorage.getItem(key);
+    return options.find(o => o === stored) ?? fallback;
   } catch {
-    return 'vhs';
+    return fallback;
+  }
+};
+
+const storeChoice = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage unavailable (private mode): the choice just won't persist
   }
 };
 
@@ -23,11 +35,37 @@ const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON', 'A'].includes(target.tagName) || target.isContentEditable);
 
+interface ChoiceGroupProps<T extends string> {
+  label: string;
+  options: T[];
+  value: T;
+  onChange: (value: T) => void;
+  text: (value: T) => string;
+}
+
+const ChoiceGroup = <T extends string>({ label, options, value, onChange, text }: ChoiceGroupProps<T>) => (
+  <div role="group" aria-label={label} className="flex gap-1 bg-bg-paper border border-white/10 rounded-full p-1">
+    {options.map(option => (
+      <button
+        key={option}
+        onClick={() => onChange(option)}
+        aria-pressed={value === option}
+        className={`px-3 py-1 text-xs font-bold tracking-widest rounded-full transition-colors ${
+          value === option ? 'bg-secondary text-black' : 'text-white/60 hover:text-white'
+        }`}
+      >
+        {text(option)}
+      </button>
+    ))}
+  </div>
+);
+
 function App() {
   const filters = useFilters();
   const wheel = useWheel();
   const [showFilters, setShowFilters] = useState(false);
-  const [caseStyle, setCaseStyle] = useState<CaseStyle>(loadCaseStyle);
+  const [caseStyle, setCaseStyle] = useState<CaseStyle>(() => loadChoice(CASE_STYLE_KEY, ['vhs', 'dvd'], 'vhs'));
+  const [skin, setSkin] = useState<WheelSkin>(() => loadChoice(SKIN_KEY, ['cel', 'real'], 'cel'));
 
   const { data: genres = [] } = useQuery({
     queryKey: ['genres'],
@@ -42,11 +80,12 @@ function App() {
 
   const chooseCaseStyle = (style: CaseStyle) => {
     setCaseStyle(style);
-    try {
-      localStorage.setItem(CASE_STYLE_KEY, style);
-    } catch {
-      // storage unavailable (private mode): the choice just won't persist
-    }
+    storeChoice(CASE_STYLE_KEY, style);
+  };
+
+  const chooseSkin = (next: WheelSkin) => {
+    setSkin(next);
+    storeChoice(SKIN_KEY, next);
   };
 
   const handleSpin = useCallback(() => {
@@ -127,6 +166,7 @@ function App() {
           images={wheel.images}
           onSpinComplete={wheel.onSpinComplete}
           caseStyle={caseStyle}
+          skin={skin}
           onHubClick={handleSpin}
           hubDisabled={busy}
         />
@@ -161,22 +201,22 @@ function App() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <ChoiceGroup
+            label="Wheel look"
+            options={['cel', 'real'] as WheelSkin[]}
+            value={skin}
+            onChange={chooseSkin}
+            text={s => SKIN_LABELS[s]}
+          />
           {/* Case style: how the titles are dressed on the wheel */}
-          <div role="group" aria-label="Box style" className="flex gap-1 bg-bg-paper border border-white/10 rounded-full p-1">
-            {(['vhs', 'dvd'] as CaseStyle[]).map(style => (
-              <button
-                key={style}
-                onClick={() => chooseCaseStyle(style)}
-                aria-pressed={caseStyle === style}
-                className={`px-3 py-1 text-xs font-bold tracking-widest rounded-full transition-colors ${
-                  caseStyle === style ? 'bg-secondary text-black' : 'text-white/60 hover:text-white'
-                }`}
-              >
-                {style.toUpperCase()}
-              </button>
-            ))}
-          </div>
+          <ChoiceGroup
+            label="Box style"
+            options={['vhs', 'dvd'] as CaseStyle[]}
+            value={caseStyle}
+            onChange={chooseCaseStyle}
+            text={s => s.toUpperCase()}
+          />
 
           {/* Mobile filter toggle */}
           <button

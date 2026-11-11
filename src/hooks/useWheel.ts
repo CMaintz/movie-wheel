@@ -68,11 +68,10 @@ export const useWheel = () => {
         posterUrl: m.poster_path ? `${TMDB_IMG}${m.poster_path}` : null,
         mediaType: m.media_type,
       }));
+      // The wheel bakes posters when the segments change, so the images must be in place first:
+      // setting segments before the preload finishes paints the previous spin's posters.
+      imagesRef.current = await preloadImages(newSegments.map(s => s.posterUrl));
       setSegments(newSegments);
-
-      // Preload images
-      const images = await preloadImages(newSegments.map(s => s.posterUrl));
-      imagesRef.current = images;
 
       // Pick winner
       const winner = Math.floor(Math.random() * movies.length);

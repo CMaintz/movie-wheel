@@ -7,8 +7,6 @@ import {
   coverCrop,
   flapperAngle,
   pegsPassed,
-  wedgeColor,
-  WEDGE_COLORS,
 } from './wheelArt';
 
 const SEGMENT_ANGLE = TAU / 12;
@@ -87,14 +85,10 @@ describe('bulbLit', () => {
   });
 });
 
-describe('bulbAngles and wedgeColor', () => {
+describe('bulbAngles', () => {
   it('places two bulbs per segment, none on a boundary', () => {
     const angles = bulbAngles(12);
     expect(angles).toHaveLength(24);
     expect(angles.every(a => Math.abs((a / SEGMENT_ANGLE) % 1) > 0.1)).toBe(true);
-  });
-
-  it('cycles the wedge palette', () => {
-    expect(wedgeColor(WEDGE_COLORS.length)).toBe(wedgeColor(0));
   });
 });

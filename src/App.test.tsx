@@ -18,19 +18,25 @@ vi.mock('./services/api', () => ({
   getWatchProviders: vi.fn(),
 }));
 
-// jsdom has no canvas: every context method is a no-op that returns the context itself.
+// jsdom has no canvas: every context method is a no-op that returns the context itself,
+// except drawImage, which records its source so tests can tell what reached the wheel.
+const drawnImages: unknown[] = [];
 const fakeContext: CanvasRenderingContext2D = new Proxy({} as CanvasRenderingContext2D, {
-  get: (target, prop) => (prop in target ? target[prop as keyof typeof target] : () => fakeContext),
+  get: (target, prop) => {
+    if (prop === 'drawImage') return (source: unknown) => drawnImages.push(source);
+    return prop in target ? target[prop as keyof typeof target] : () => fakeContext;
+  },
   set: () => true,
 });
 
+// Posters arrive a moment after the request, as over a network, so the wheel renders in between.
 class InstantImage {
   onload: (() => void) | null = null;
   crossOrigin = '';
   complete = true;
   naturalWidth = 1;
   set src(_url: string) {
-    queueMicrotask(() => this.onload?.());
+    setTimeout(() => this.onload?.(), 30);
   }
 }
 
@@ -57,6 +63,8 @@ const renderApp = () =>
 
 describe('App', () => {
   beforeEach(() => {
+    drawnImages.length = 0;
+    localStorage.clear();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext as never);
     vi.stubGlobal('Image', InstantImage);
     // Jump every animation frame to the end of the spin.
@@ -99,6 +107,28 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'DVD' }));
     expect(screen.getByRole('button', { name: 'DVD' })).toHaveAttribute('aria-pressed', 'true');
     expect(localStorage.getItem('moviewheel_case_style')).toBe('dvd');
+  });
+
+  it('switches the wheel look, remembers it and still lands on the pick', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    expect(screen.getByRole('button', { name: 'Cartoon' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Classic' }));
+    expect(screen.getByRole('button', { name: 'Classic' })).toHaveAttribute('aria-pressed', 'true');
+    expect(localStorage.getItem('moviewheel_skin')).toBe('real');
+
+    await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    expect(await screen.findByRole('dialog', { name: 'Movie 4' })).toBeInTheDocument();
+  });
+
+  it('paints the fetched posters onto the wheel', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    await screen.findByRole('dialog', { name: 'Movie 4' });
+    expect(drawnImages.some(img => img instanceof InstantImage)).toBe(true);
   });
 
   it('spins from the hub and the Space key, but not while typing', async () => {
