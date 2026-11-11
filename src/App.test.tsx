@@ -11,8 +11,10 @@ import {
 } from './services/api';
 import type { Media, MediaDetails } from './types';
 
-// The result waits a beat after the wheel lands, longer than findBy's default 1s.
 configure({ asyncUtilTimeout: 2500 });
+
+// The real pause before the result is long enough to push two-spin tests past the time limit
+vi.mock('./timing', () => ({ REVEAL_DELAY: 200 }));
 
 vi.mock('./services/api', () => ({
   fetchWheelCandidates: vi.fn(),
@@ -24,6 +26,8 @@ vi.mock('./services/api', () => ({
 // jsdom has no canvas: every context method is a no-op that returns the context itself,
 // except drawImage, which records its source so tests can tell what reached the wheel.
 const drawnImages: unknown[] = [];
+let frameStep = 0;
+let frameCount = 0;
 const fakeContext: CanvasRenderingContext2D = new Proxy({} as CanvasRenderingContext2D, {
   get: (target, prop) => {
     if (prop === 'drawImage') return (source: unknown) => drawnImages.push(source);
@@ -69,9 +73,15 @@ describe('App', () => {
     drawnImages.length = 0;
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext as never);
     vi.stubGlobal('Image', InstantImage);
-    // Jump every animation frame to the end of the spin.
+    // Each animation frame jumps a minute ahead on its own clock, so any spin ends within a few frames
+    frameStep = 60_000;
+    frameCount = 0;
+    let clock = 0;
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      setTimeout(() => cb(performance.now() + 10_000), 0);
+      setTimeout(() => {
+        frameCount++;
+        cb((clock += frameStep));
+      }, 0);
       return 1;
     });
     vi.stubGlobal('cancelAnimationFrame', () => {});
@@ -93,6 +103,9 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Spin!' }));
 
+    // The landed wheel stays in view for a moment before the result covers it
+    expect(await screen.findByText('The wheel picked Movie 4.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(await screen.findByText('Plot of 4')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Movie 4' })).toBeInTheDocument();
     expect(fetchWheelCandidates).toHaveBeenCalledOnce();
@@ -143,6 +156,19 @@ describe('App', () => {
     vi.mocked(fetchWheelCandidates).mockReturnValue(new Promise(() => {}));
     await user.click(await screen.findByRole('button', { name: /Spin again/i }));
     expect(screen.getByRole('img', { name: /Movie 1, Movie 2/ })).toBeInTheDocument();
+  });
+
+  it('cuts a spin short when Skip is pressed', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    // Real frame pacing: a full spin is over 600 frames
+    frameStep = 16;
+
+    await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Movie 4' }, { timeout: 4000 })).toBeInTheDocument();
+    expect(frameCount).toBeLessThan(350);
   });
 
   it('spins when the wheel itself is clicked', async () => {

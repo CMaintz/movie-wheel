@@ -36,6 +36,7 @@ export const useWheel = () => {
   const [winnerIndex, setWinnerIndex] = useState<number | null>(null);
   const [winnerMedia, setWinnerMedia] = useState<Media | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [skipRequested, setSkipRequested] = useState(false);
   const imagesRef = useRef<(HTMLImageElement | null)[]>([]);
   const mediaListRef = useRef<Media[]>([]);
   // Titles that have been on the wheel since the page loaded, kept off later spins
@@ -46,6 +47,7 @@ export const useWheel = () => {
     allGenres: MergedGenre[]
   ) => {
     setError(null);
+    setSkipRequested(false);
     setWheelState('loading');
     setWinnerIndex(null);
     setWinnerMedia(null);
@@ -85,6 +87,8 @@ export const useWheel = () => {
     }
   }, []);
 
+  const skip = useCallback(() => setSkipRequested(true), []);
+
   const onSpinComplete = useCallback(() => {
     setWheelState('stopped');
   }, []);
@@ -115,6 +119,8 @@ export const useWheel = () => {
     images: imagesRef,
     spin,
     onSpinComplete,
+    skip,
+    skipRequested,
     dismiss,
     reset,
     isSpinning: wheelState === 'spinning',

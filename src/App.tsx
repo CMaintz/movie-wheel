@@ -8,6 +8,7 @@ import FilterPanel from './components/FilterPanel';
 import ResultModal from './components/ResultModal';
 import type { CaseStyle, WheelSkin } from './utils/wheelArt';
 import type { Media } from './types';
+import { REVEAL_DELAY } from './timing';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
 const CASE_STYLE_KEY = 'moviewheel_case_style';
@@ -32,8 +33,6 @@ const storeChoice = (key: string, value: string) => {
   }
 };
 
-/** Time on the stopped wheel, winner lit, before the result covers it. */
-const REVEAL_DELAY = 1200;
 
 const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -110,17 +109,19 @@ function App() {
   // Spinning again keeps the last titles on the wheel until the new ones arrive
   const handleSpinAgain = handleSpin;
 
-  // Space spins, unless focus is on a control that already uses the key or a dialog is open
+  // Space spins, or skips ahead mid-spin, unless focus is on a control that already uses the key
+  // or a dialog is open
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return;
       if (showFilters || stopped) return;
       e.preventDefault();
-      handleSpin();
+      if (wheel.isSpinning) wheel.skip();
+      else handleSpin();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSpin, showFilters, stopped]);
+  }, [handleSpin, showFilters, stopped, wheel]);
 
   // Escape closes the mobile filter drawer
   useEffect(() => {
@@ -177,6 +178,7 @@ function App() {
           skin={skin}
           onHubClick={handleSpin}
           hubDisabled={busy}
+          skipRequested={wheel.skipRequested}
         />
 
         <p className="sr-only" role="status" aria-live="polite">{status}</p>
@@ -189,8 +191,8 @@ function App() {
 
         <div className="flex flex-col items-center gap-3">
           <button
-            onClick={handleSpin}
-            disabled={busy}
+            onClick={wheel.isSpinning ? wheel.skip : handleSpin}
+            disabled={wheel.isLoading || (wheel.isSpinning && wheel.skipRequested)}
             className="flex items-center justify-center gap-2 min-w-[11rem] px-8 py-3 bg-primary hover:bg-primary-dark text-white text-xl font-display tracking-wide rounded-full border-2 border-secondary shadow-[0_0_24px_rgba(230,57,70,0.45)] transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
           >
             {wheel.isLoading ? (
@@ -199,7 +201,7 @@ function App() {
                 Loading…
               </>
             ) : wheel.isSpinning ? (
-              'Spinning…'
+              wheel.skipRequested ? 'Spinning…' : 'Skip'
             ) : (
               'Spin!'
             )}

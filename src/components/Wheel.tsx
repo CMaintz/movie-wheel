@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WheelSegmentData } from '../types';
 import type { WheelState } from '../hooks/useWheel';
-import { easeOutQuart } from '../utils/easing';
+import { skipSpin, spinEase } from '../utils/easing';
 import { TAU, computeSpinDelta } from '../utils/wheelMath';
 import { boxGeometry, bulbLit, flapperAngle } from '../utils/wheelArt';
 import type { CaseStyle, LightMode, WheelSkin } from '../utils/wheelArt';
@@ -12,10 +12,14 @@ import { realSkin } from '../wheel/realSkin';
 
 const SEGMENT_COUNT = 12;
 const SEGMENT_ANGLE = TAU / SEGMENT_COUNT;
-const SPIN_DURATION = 5200; // ms
+const SPIN_DURATION = 10_000; // ms
 const REDUCED_SPIN_DURATION = 1200;
-const MIN_ROTATIONS = 5;
-const MAX_EXTRA_ROTATIONS = 3;
+// Top speed is about turns * 3.2 / duration. Past ~2.5 turns a second each frame moves the wheel
+// half a segment, and the boxes strobe instead of blurring into a spin.
+const MIN_ROTATIONS = 6;
+const MAX_EXTRA_ROTATIONS = 2;
+// What's left to watch after the viewer skips: the slow crawl past the last few pegs
+const SKIP_REMAINING = 2800;
 const LOADING_SPEED = 0.0012; // rad/ms: a lazy turn while candidates load
 const MAX_SIZE = 560;
 // Title, spin button, hint and the toggles row below the wheel
@@ -36,6 +40,8 @@ interface WheelProps {
   skin: WheelSkin;
   onHubClick: () => void;
   hubDisabled: boolean;
+  /** Set during a spin to cut to its ending. */
+  skipRequested: boolean;
 }
 
 /** The parts that turn, baked once per set of titles so a frame is just a few rotated blits. */
@@ -137,6 +143,7 @@ const Wheel: React.FC<WheelProps> = ({
   skin,
   onHubClick,
   hubDisabled,
+  skipRequested,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -145,6 +152,10 @@ const Wheel: React.FC<WheelProps> = ({
   const currentAngleRef = useRef(0);
   const turningRef = useRef<TurningLayers | null>(null);
   const frameRef = useRef<FrameLayers | null>(null);
+  // The frame loops read these through refs: restarting a loop when they change would replan the
+  // spin from scratch, so the wheel would lurch and run its full length again.
+  const drawRef = useRef<(rotation: number, timeMs: number, lights: LightMode) => void>(() => {});
+  const skipRef = useRef(skipRequested);
 
   // Responsive sizing: as large as the column allows, capped by viewport height on short screens
   useEffect(() => {
@@ -265,7 +276,12 @@ const Wheel: React.FC<WheelProps> = ({
     ctx.restore();
   }, [canvasSize, images, segments, caseStyle, skin, wheelState, winnerIndex, hubDisabled, fontsLoaded]);
 
-  // Spin animation (finite: ends when the easing reaches 1)
+  useEffect(() => {
+    drawRef.current = drawWheel;
+    skipRef.current = skipRequested;
+  }, [drawWheel, skipRequested]);
+
+  // Spin animation (finite: ends when the progress reaches 1)
   useEffect(() => {
     if (wheelState !== 'spinning' || winnerIndex === null) return;
 
@@ -273,21 +289,33 @@ const Wheel: React.FC<WheelProps> = ({
     const fullTurns = reduced ? 1 : MIN_ROTATIONS + Math.floor(Math.random() * MAX_EXTRA_ROTATIONS);
     const duration = reduced ? REDUCED_SPIN_DURATION : SPIN_DURATION;
     const jitter = (Math.random() - 0.5) * SEGMENT_ANGLE * 0.5;
-    const totalAngle = computeSpinDelta(
-      currentAngleRef.current, winnerIndex, SEGMENT_COUNT, fullTurns, jitter
-    );
-
-    const startTime = performance.now();
     const startAngle = currentAngleRef.current;
+    const totalAngle = computeSpinDelta(startAngle, winnerIndex, SEGMENT_COUNT, fullTurns, jitter);
+
+    // Progress advances from `fromProgress` at `rate` since `fromTime`; a skip moves all three
+    let fromTime: number | null = null;
+    let fromProgress = 0;
+    let rate = 1;
+    let skipped = false;
+    let framesAtRest = 0;
     let active = true;
     let frameId = 0;
 
     const animate = (now: number) => {
       if (!active) return;
-      const progress = Math.min((now - startTime) / duration, 1);
-      const angle = startAngle + easeOutQuart(progress) * totalAngle;
+      let progress = fromTime === null ? 0 : Math.min(fromProgress + (Math.max(0, now - fromTime) / duration) * rate, 1);
+      if (skipRef.current && !skipped && !reduced) {
+        skipped = true;
+        ({ progress, rate } = skipSpin(progress, totalAngle, duration, SKIP_REMAINING));
+        fromProgress = progress;
+        fromTime = now;
+      }
+      const angle = startAngle + spinEase(progress) * totalAngle;
       currentAngleRef.current = angle;
-      drawWheel(angle, now, 'spinning');
+      drawRef.current(angle, now, 'spinning');
+      // The first frame bakes the new posters. Starting the clock on the frame after it keeps that
+      // cost from showing up as a jump.
+      if (fromTime === null && ++framesAtRest === 2) fromTime = now;
 
       if (progress < 1) {
         frameId = requestAnimationFrame(animate);
@@ -302,7 +330,7 @@ const Wheel: React.FC<WheelProps> = ({
       active = false;
       cancelAnimationFrame(frameId);
     };
-  }, [wheelState, winnerIndex, drawWheel, onSpinComplete]);
+  }, [wheelState, winnerIndex, onSpinComplete]);
 
   // Lazy turn while loading candidates, so the click gets immediate feedback
   useEffect(() => {
@@ -314,7 +342,7 @@ const Wheel: React.FC<WheelProps> = ({
       if (!active) return;
       currentAngleRef.current += (now - last) * LOADING_SPEED;
       last = now;
-      drawWheel(currentAngleRef.current, now, 'loading');
+      drawRef.current(currentAngleRef.current, now, 'loading');
       frameId = requestAnimationFrame(tick);
     };
     frameId = requestAnimationFrame(tick);
@@ -322,7 +350,7 @@ const Wheel: React.FC<WheelProps> = ({
       active = false;
       cancelAnimationFrame(frameId);
     };
-  }, [wheelState, drawWheel]);
+  }, [wheelState]);
 
   // Static draw plus marquee lights at rest (a cheap interval, not a frame loop)
   useEffect(() => {
