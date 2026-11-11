@@ -271,6 +271,15 @@ describe('fetchWheelCandidates', () => {
     expect(new Set(res.map(m => m.id))).toEqual(new Set([1, 2]));
   });
 
+  it('tops up with seen titles before repeating the few unseen ones', async () => {
+    mockFetch(() => ({ page: 1, total_pages: 1, total_results: 4, results: [1, 2, 3, 4].map(id => rawMovie(id)) }));
+    const seen = new Set([2, 3, 4].map(id => mediaKey({ media_type: 'movie', id })));
+
+    const res = await fetchWheelCandidates(filters(), [], 4, seen);
+
+    expect(res.map(m => m.id).sort()).toEqual([1, 2, 3, 4]);
+  });
+
   it('returns nothing when TMDB has no matches', async () => {
     mockFetch(() => ({ page: 1, total_pages: 0, total_results: 0, results: [] }));
     expect(await fetchWheelCandidates(filters({ mediaType: 'both', minRating: 9.5 }), [], 12)).toEqual([]);

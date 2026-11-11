@@ -290,7 +290,8 @@ const shuffle = <T>(items: T[]): T[] => {
 
 /**
  * Up to `count` random titles matching the filters, leaving out any whose `mediaKey` is in `seen`.
- * Only when every match has been seen are seen titles used, so narrow filters still fill the wheel.
+ * Seen titles only fill the slots left once the unseen ones run out, so narrow filters still fill
+ * the wheel with as much variety as they can.
  */
 export const fetchWheelCandidates = async (
   filters: FilterState,
@@ -344,7 +345,8 @@ export const fetchWheelCandidates = async (
     }
   }
 
-  const picked = shuffle(results.length > 0 ? results : seenMatches).slice(0, count);
+  const picked = shuffle(results).slice(0, count);
+  picked.push(...shuffle(seenMatches).slice(0, count - picked.length));
 
   // If fewer than count, pad with repeats
   const unique = picked.length;
