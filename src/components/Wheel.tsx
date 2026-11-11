@@ -346,8 +346,14 @@ const Wheel: React.FC<WheelProps> = ({
   return (
     <div ref={containerRef} className="flex justify-center w-full max-w-[560px]">
       <div className="relative" style={{ width: canvasSize, height: canvasSize }}>
-        <canvas ref={canvasRef} role="img" aria-label={label} />
-        {/* Hub is a real button so it's reachable by keyboard and screen readers */}
+        {/* Clicking anywhere on the wheel spins it; the hub button below is the keyboard route */}
+        <canvas
+          ref={canvasRef}
+          role="img"
+          aria-label={label}
+          onClick={hubDisabled ? undefined : onHubClick}
+          className={hubDisabled ? '' : 'cursor-pointer'}
+        />
         <button
           type="button"
           onClick={onHubClick}

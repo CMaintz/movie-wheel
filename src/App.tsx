@@ -7,6 +7,7 @@ import Wheel from './components/Wheel';
 import FilterPanel from './components/FilterPanel';
 import ResultModal from './components/ResultModal';
 import type { CaseStyle, WheelSkin } from './utils/wheelArt';
+import type { Media } from './types';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
 const CASE_STYLE_KEY = 'moviewheel_case_style';
@@ -30,6 +31,9 @@ const storeChoice = (key: string, value: string) => {
     // storage unavailable (private mode): the choice just won't persist
   }
 };
+
+/** Time on the stopped wheel, winner lit, before the result covers it. */
+const REVEAL_DELAY = 600;
 
 const isTypingTarget = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -66,6 +70,7 @@ function App() {
   const [showFilters, setShowFilters] = useState(false);
   const [caseStyle, setCaseStyle] = useState<CaseStyle>(() => loadChoice(CASE_STYLE_KEY, ['vhs', 'dvd'], 'vhs'));
   const [skin, setSkin] = useState<WheelSkin>(() => loadChoice(SKIN_KEY, ['cel', 'real'], 'cel'));
+  const [revealedPick, setRevealedPick] = useState<Media | null>(null);
 
   const { data: genres = [] } = useQuery({
     queryKey: ['genres'],
@@ -75,8 +80,16 @@ function App() {
   });
 
   const busy = wheel.isSpinning || wheel.isLoading;
-  const showResult = wheel.wheelState === 'stopped' && wheel.winnerMedia !== null;
+  const stopped = wheel.wheelState === 'stopped' && wheel.winnerMedia !== null;
+  const showResult = stopped && revealedPick === wheel.winnerMedia;
   const activeFilterCount = filters.state.selectedGenres.length + filters.state.selectedCombos.length;
+
+  useEffect(() => {
+    if (!stopped) return;
+    const pick = wheel.winnerMedia;
+    const id = window.setTimeout(() => setRevealedPick(pick), REVEAL_DELAY);
+    return () => window.clearTimeout(id);
+  }, [stopped, wheel.winnerMedia]);
 
   const chooseCaseStyle = (style: CaseStyle) => {
     setCaseStyle(style);
@@ -94,25 +107,20 @@ function App() {
     setShowFilters(false);
   }, [busy, wheel, filters.state, genres]);
 
-  const handleSpinAgain = () => {
-    wheel.reset();
-    // Small delay so wheel resets visually before spinning again
-    setTimeout(() => {
-      wheel.spin(filters.state, genres);
-    }, 100);
-  };
+  // Spinning again keeps the last titles on the wheel until the new ones arrive
+  const handleSpinAgain = handleSpin;
 
   // Space spins, unless focus is on a control that already uses the key or a dialog is open
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return;
-      if (showFilters || showResult) return;
+      if (showFilters || stopped) return;
       e.preventDefault();
       handleSpin();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSpin, showFilters, showResult]);
+  }, [handleSpin, showFilters, stopped]);
 
   // Escape closes the mobile filter drawer
   useEffect(() => {
@@ -128,7 +136,7 @@ function App() {
     ? 'Finding titles…'
     : wheel.isSpinning
       ? 'Spinning…'
-      : showResult
+      : stopped
         ? `The wheel picked ${wheel.winnerMedia?.title}.`
         : '';
 

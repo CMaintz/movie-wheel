@@ -131,6 +131,26 @@ describe('App', () => {
     expect(drawnImages.some(img => img instanceof InstantImage)).toBe(true);
   });
 
+  it('keeps the last titles on the wheel while spinning again', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    await screen.findByRole('dialog', { name: 'Movie 4' });
+
+    vi.mocked(fetchWheelCandidates).mockReturnValue(new Promise(() => {}));
+    await user.click(await screen.findByRole('button', { name: /Spin again/i }));
+    expect(screen.getByRole('img', { name: /Movie 1, Movie 2/ })).toBeInTheDocument();
+  });
+
+  it('spins when the wheel itself is clicked', async () => {
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('img', { name: /Prize wheel/ }));
+    expect(await screen.findByRole('dialog', { name: 'Movie 4' })).toBeInTheDocument();
+  });
+
   it('spins from the hub and the Space key, but not while typing', async () => {
     const user = userEvent.setup();
     renderApp();
