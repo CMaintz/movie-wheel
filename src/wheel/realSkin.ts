@@ -4,7 +4,7 @@ import { boxParts, bulbPositions, circle, drawPoster, hasPixels, roundRect, wedg
 
 // Painted-prop look: matte enamel wedges with a little grain, aged brass, warm bulbs. Light comes
 // from the top left and is baked only into the parts that don't turn. Kept matte on purpose: a
-// glossy finish read as plastic in the 3D prototype.
+// glossy finish reads as plastic.
 const WEDGES = ['#9e2b35', '#c98f2a', '#2c5a86', '#5a3b7e', '#386f4b', '#b4572a'];
 const BRASS_DARK = '#3a2a14';
 const LABEL_FONT = 'system-ui, sans-serif';
