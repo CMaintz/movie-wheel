@@ -102,11 +102,6 @@ export const realSkin: Skin = {
       if (strip) {
         ctx.fillStyle = '#0a0a0a';
         ctx.fillRect(strip.x, strip.y, strip.w, strip.h);
-        ctx.fillStyle = '#ededed';
-        ctx.font = `800 ${strip.h * 0.6}px ${LABEL_FONT}`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('VHS', x + w * 0.08, strip.y + strip.h * 0.52);
         ctx.fillStyle = '#c9851c';
         ctx.fillRect(x + w * 0.62, strip.y + strip.h * 0.32, w * 0.28, strip.h * 0.36);
       }
@@ -138,13 +133,6 @@ export const realSkin: Skin = {
       ctx.textBaseline = 'middle';
       ctx.fillText('?', cover.x + cover.w / 2, cover.y + cover.h * 0.55);
     }
-    ctx.fillStyle = 'rgba(10,10,14,0.9)';
-    ctx.fillRect(cover.x, cover.y, cover.w, cover.h * 0.11);
-    ctx.fillStyle = '#f2f2f2';
-    ctx.font = `800 ${cover.h * 0.075}px ${LABEL_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('DVD', cover.x + cover.w / 2, cover.y + cover.h * 0.058);
     // Clear sleeve over the cover: a faint milky film, not a highlight
     ctx.fillStyle = 'rgba(255,255,255,0.05)';
     ctx.fillRect(cover.x, cover.y, cover.w, cover.h);

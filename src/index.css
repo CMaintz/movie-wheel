@@ -103,30 +103,14 @@ input[type='range']::-moz-range-thumb {
   pointer-events: none;
 }
 .case-vhs {
-  padding-bottom: 1.75rem;
+  padding-bottom: 1rem;
   aspect-ratio: 0.56;
 }
 .case-dvd {
   border-radius: 6px;
-  padding: 1.4rem 4px 4px 10px;
+  padding: 4px 4px 4px 10px;
   aspect-ratio: 0.7;
   background: #121418;
-}
-.case-badge {
-  position: absolute;
-  font: 900 0.8rem system-ui, sans-serif;
-  color: #fff;
-  letter-spacing: 0.08em;
-}
-.case-vhs .case-badge {
-  left: 0.6rem;
-  bottom: 0.35rem;
-}
-.case-dvd .case-badge {
-  top: 0.2rem;
-  left: 0;
-  right: 0;
-  text-align: center;
 }
 
 @media (prefers-reduced-motion: reduce) {

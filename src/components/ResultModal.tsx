@@ -121,7 +121,6 @@ const ResultModal: React.FC<ResultModalProps> = ({ media, caseStyle = 'vhs', onC
                       <Film size={40} className="text-white/20" />
                     </div>
                   )}
-                  <span className="case-badge" aria-hidden="true">{caseStyle.toUpperCase()}</span>
                 </div>
               </div>
 

@@ -118,11 +118,6 @@ export const celSkin: Skin = {
       if (strip) {
         ctx.fillStyle = INK;
         ctx.fillRect(strip.x, strip.y, strip.w, strip.h);
-        ctx.fillStyle = '#fff';
-        ctx.font = `${strip.h * 0.6}px ${DISPLAY_FONT}`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('VHS', x + w * 0.09, strip.y + strip.h * 0.54);
         ctx.fillStyle = GOLD;
         ctx.fillRect(x + w * 0.64, strip.y + strip.h * 0.3, w * 0.26, strip.h * 0.4);
       }
@@ -151,13 +146,6 @@ export const celSkin: Skin = {
       ctx.textBaseline = 'middle';
       ctx.fillText('?', cover.x + cover.w / 2, cover.y + cover.h * 0.56);
     }
-    ctx.fillStyle = INK;
-    ctx.fillRect(cover.x, cover.y, cover.w, cover.h * 0.12);
-    ctx.fillStyle = '#fff';
-    ctx.font = `${cover.h * 0.08}px ${DISPLAY_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('DVD', cover.x + cover.w / 2, cover.y + cover.h * 0.065);
     ctx.restore();
     ctx.beginPath();
     ctx.rect(cover.x, cover.y, cover.w, cover.h);
