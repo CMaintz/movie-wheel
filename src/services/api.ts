@@ -2,6 +2,7 @@ import type { MediaResponse, Genre, MediaDetails, Media, MergedGenre } from '../
 import { config } from '../config';
 import type { FilterState, GenreMode } from '../hooks/useFilters';
 import { GENRE_COMBOS, resolveCombo } from '../utils/genreCombos';
+import { mediaKey } from '../utils/mediaKey';
 
 const TMDB_DIRECT_URL = 'https://api.themoviedb.org/3';
 const DEFAULT_LANGUAGE = 'en-US';
@@ -287,10 +288,15 @@ const shuffle = <T>(items: T[]): T[] => {
   return out;
 };
 
+/**
+ * Up to `count` random titles matching the filters, leaving out any whose `mediaKey` is in `seen`.
+ * Only when every match has been seen are seen titles used, so narrow filters still fill the wheel.
+ */
 export const fetchWheelCandidates = async (
   filters: FilterState,
   allGenres: MergedGenre[] = [],
-  count: number = 12
+  count: number = 12,
+  seen: ReadonlySet<string> = new Set()
 ): Promise<Media[]> => {
   const types: Array<'movie' | 'tv'> = filters.mediaType === 'both' ? ['movie', 'tv'] : [filters.mediaType];
   const options = types.flatMap(type =>
@@ -299,6 +305,7 @@ export const fetchWheelCandidates = async (
   if (options.length === 0) return [];
 
   const results: Media[] = [];
+  const seenMatches: Media[] = [];
 
   // Visit every selection (up to a cap) before stopping, otherwise the first page fills the
   // wheel and multiple combos or "both" media types never actually mix
@@ -327,14 +334,17 @@ export const fetchWheelCandidates = async (
 
     const pageData = randomPage === 1 ? firstPage : await discoverRandom(type, query, randomPage);
 
-    const withPosters = pageData.results
-      .filter(m => m.poster_path)
-      .filter(m => !results.some(r => r.id === m.id));
-
-    results.push(...withPosters);
+    for (const m of pageData.results) {
+      if (!m.poster_path || results.some(r => r.id === m.id && r.media_type === m.media_type)) continue;
+      if (seen.has(mediaKey(m))) {
+        if (!seenMatches.some(r => r.id === m.id && r.media_type === m.media_type)) seenMatches.push(m);
+      } else {
+        results.push(m);
+      }
+    }
   }
 
-  const picked = shuffle(results).slice(0, count);
+  const picked = shuffle(results.length > 0 ? results : seenMatches).slice(0, count);
 
   // If fewer than count, pad with repeats
   const unique = picked.length;

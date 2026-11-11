@@ -8,6 +8,7 @@ import {
   getWatchProviders,
 } from './api';
 import type { DiscoverQuery } from './api';
+import { mediaKey } from '../utils/mediaKey';
 import type { FilterState } from '../hooks/useFilters';
 
 type Handler = (url: URL) => unknown;
@@ -236,6 +237,38 @@ describe('fetchWheelCandidates', () => {
 
     expect(res).toHaveLength(12);
     expect(new Set(res.map(m => m.id))).toEqual(new Set([1, 2, 3]));
+  });
+
+  it('skips titles already seen this session', async () => {
+    mockFetch(() => ({
+      page: 1,
+      total_pages: 1,
+      total_results: 20,
+      results: Array.from({ length: 20 }, (_, i) => rawMovie(i + 1)),
+    }));
+    const seen = new Set(Array.from({ length: 10 }, (_, i) => mediaKey({ media_type: 'movie', id: i + 1 })));
+
+    const res = await fetchWheelCandidates(filters(), [], 12, seen);
+
+    expect(res.some(m => m.id <= 10)).toBe(false);
+    expect(new Set(res.map(m => m.id))).toEqual(new Set(Array.from({ length: 10 }, (_, i) => i + 11)));
+  });
+
+  it('only treats the same id as seen within the same media type', async () => {
+    mockFetch(() => ({ page: 1, total_pages: 1, total_results: 1, results: [rawMovie(7)] }));
+
+    const res = await fetchWheelCandidates(filters(), [], 1, new Set([mediaKey({ media_type: 'tv', id: 7 })]));
+
+    expect(res.map(m => m.id)).toEqual([7]);
+  });
+
+  it('falls back to seen titles rather than an empty wheel once the filters are used up', async () => {
+    mockFetch(() => ({ page: 1, total_pages: 1, total_results: 2, results: [rawMovie(1), rawMovie(2)] }));
+    const seen = new Set([1, 2].map(id => mediaKey({ media_type: 'movie', id })));
+
+    const res = await fetchWheelCandidates(filters(), [], 4, seen);
+
+    expect(new Set(res.map(m => m.id))).toEqual(new Set([1, 2]));
   });
 
   it('returns nothing when TMDB has no matches', async () => {
