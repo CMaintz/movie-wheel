@@ -8,6 +8,7 @@ import {
   getWatchProviders,
 } from './api';
 import type { DiscoverQuery } from './api';
+import { mediaKey } from '../utils/mediaKey';
 import type { FilterState } from '../hooks/useFilters';
 
 type Handler = (url: URL) => unknown;
@@ -115,6 +116,15 @@ describe('discoverRandom', () => {
     expect(url.searchParams.get('with_genres')).toBe('18,35');
     expect(url.searchParams.get('first_air_date.gte')).toBe('2010-01-01');
     expect(url.searchParams.has('with_release_type')).toBe(false);
+    expect(url.searchParams.has('with_runtime.gte')).toBe(false);
+  });
+
+  it('leaves short films out of movie results', async () => {
+    const fetchMock = mockFetch(() => ({ page: 1, results: [], total_pages: 1, total_results: 0 }));
+
+    await discoverRandom('movie', query(), 1);
+
+    expect(calledUrl(fetchMock).searchParams.get('with_runtime.gte')).toBe('40');
   });
 
   it('uses the current date for the release cut-off, not the date the module loaded', async () => {
@@ -227,6 +237,46 @@ describe('fetchWheelCandidates', () => {
 
     expect(res).toHaveLength(12);
     expect(new Set(res.map(m => m.id))).toEqual(new Set([1, 2, 3]));
+  });
+
+  it('skips titles already seen this session', async () => {
+    mockFetch(() => ({
+      page: 1,
+      total_pages: 1,
+      total_results: 20,
+      results: Array.from({ length: 20 }, (_, i) => rawMovie(i + 1)),
+    }));
+    const seen = new Set(Array.from({ length: 10 }, (_, i) => mediaKey({ media_type: 'movie', id: i + 1 })));
+
+    const res = await fetchWheelCandidates(filters(), [], 10, seen);
+
+    expect(res.map(m => m.id).sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i + 11));
+  });
+
+  it('only treats the same id as seen within the same media type', async () => {
+    mockFetch(() => ({ page: 1, total_pages: 1, total_results: 1, results: [rawMovie(7)] }));
+
+    const res = await fetchWheelCandidates(filters(), [], 1, new Set([mediaKey({ media_type: 'tv', id: 7 })]));
+
+    expect(res.map(m => m.id)).toEqual([7]);
+  });
+
+  it('falls back to seen titles rather than an empty wheel once the filters are used up', async () => {
+    mockFetch(() => ({ page: 1, total_pages: 1, total_results: 2, results: [rawMovie(1), rawMovie(2)] }));
+    const seen = new Set([1, 2].map(id => mediaKey({ media_type: 'movie', id })));
+
+    const res = await fetchWheelCandidates(filters(), [], 4, seen);
+
+    expect(new Set(res.map(m => m.id))).toEqual(new Set([1, 2]));
+  });
+
+  it('tops up with seen titles before repeating the few unseen ones', async () => {
+    mockFetch(() => ({ page: 1, total_pages: 1, total_results: 4, results: [1, 2, 3, 4].map(id => rawMovie(id)) }));
+    const seen = new Set([2, 3, 4].map(id => mediaKey({ media_type: 'movie', id })));
+
+    const res = await fetchWheelCandidates(filters(), [], 4, seen);
+
+    expect(res.map(m => m.id).sort()).toEqual([1, 2, 3, 4]);
   });
 
   it('returns nothing when TMDB has no matches', async () => {

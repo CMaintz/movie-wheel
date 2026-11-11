@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import type { Media, WheelSegmentData, MergedGenre } from '../types';
 import { fetchWheelCandidates } from '../services/api';
+import { mediaKey } from '../utils/mediaKey';
 import type { FilterState } from './useFilters';
 
 export type WheelState = 'idle' | 'loading' | 'spinning' | 'stopped';
@@ -37,6 +38,8 @@ export const useWheel = () => {
   const [error, setError] = useState<string | null>(null);
   const imagesRef = useRef<(HTMLImageElement | null)[]>([]);
   const mediaListRef = useRef<Media[]>([]);
+  // Titles that have been on the wheel since the page loaded, kept off later spins
+  const seenRef = useRef(new Set<string>());
 
   const spin = useCallback(async (
     filters: FilterState,
@@ -48,7 +51,7 @@ export const useWheel = () => {
     setWinnerMedia(null);
 
     try {
-      const movies = await fetchWheelCandidates(filters, allGenres, SEGMENT_COUNT);
+      const movies = await fetchWheelCandidates(filters, allGenres, SEGMENT_COUNT, seenRef.current);
 
       if (movies.length === 0) {
         setError('No movies found matching your filters. Try broadening your criteria.');
@@ -57,6 +60,7 @@ export const useWheel = () => {
       }
 
       mediaListRef.current = movies;
+      for (const m of movies) seenRef.current.add(mediaKey(m));
 
       const newSegments: WheelSegmentData[] = movies.map(m => ({
         id: m.id,
