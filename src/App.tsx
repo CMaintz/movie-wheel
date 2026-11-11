@@ -9,6 +9,7 @@ import ResultModal from './components/ResultModal';
 import type { CaseStyle, WheelSkin } from './utils/wheelArt';
 import type { Media } from './types';
 import { REVEAL_DELAY } from './timing';
+import { prefersReducedMotion } from './utils/motion';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
 const CASE_STYLE_KEY = 'moviewheel_case_style';
@@ -79,6 +80,8 @@ function App() {
   });
 
   const busy = wheel.isSpinning || wheel.isLoading;
+  // A reduced-motion spin is already short, so there's nothing to skip
+  const canSkip = wheel.isSpinning && !wheel.skipRequested && !prefersReducedMotion();
   const stopped = wheel.wheelState === 'stopped' && wheel.winnerMedia !== null;
   const showResult = stopped && revealedPick === wheel.winnerMedia;
   const activeFilterCount = filters.state.selectedGenres.length + filters.state.selectedCombos.length;
@@ -116,12 +119,12 @@ function App() {
       if (e.code !== 'Space' || e.repeat || isTypingTarget(e.target)) return;
       if (showFilters || stopped) return;
       e.preventDefault();
-      if (wheel.isSpinning) wheel.skip();
+      if (canSkip) wheel.skip();
       else handleSpin();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleSpin, showFilters, stopped, wheel]);
+  }, [handleSpin, showFilters, stopped, wheel, canSkip]);
 
   // Escape closes the mobile filter drawer
   useEffect(() => {
@@ -191,8 +194,8 @@ function App() {
 
         <div className="flex flex-col items-center gap-3">
           <button
-            onClick={wheel.isSpinning ? wheel.skip : handleSpin}
-            disabled={wheel.isLoading || (wheel.isSpinning && wheel.skipRequested)}
+            onClick={canSkip ? wheel.skip : handleSpin}
+            disabled={busy && !canSkip}
             className="flex items-center justify-center gap-2 min-w-[11rem] px-8 py-3 bg-primary hover:bg-primary-dark text-white text-xl font-display tracking-wide rounded-full border-2 border-secondary shadow-[0_0_24px_rgba(230,57,70,0.45)] transition-all hover:scale-105 active:scale-95 disabled:opacity-60 disabled:hover:scale-100"
           >
             {wheel.isLoading ? (
@@ -201,7 +204,7 @@ function App() {
                 Loading…
               </>
             ) : wheel.isSpinning ? (
-              wheel.skipRequested ? 'Spinning…' : 'Skip'
+              canSkip ? 'Skip' : 'Spinning…'
             ) : (
               'Spin!'
             )}

@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WheelSegmentData } from '../types';
 import type { WheelState } from '../hooks/useWheel';
 import { skipSpin, spinEase } from '../utils/easing';
+import { prefersReducedMotion } from '../utils/motion';
 import { TAU, computeSpinDelta } from '../utils/wheelMath';
 import { boxGeometry, bulbLit, flapperAngle } from '../utils/wheelArt';
 import type { CaseStyle, LightMode, WheelSkin } from '../utils/wheelArt';
@@ -27,8 +28,6 @@ const RESERVED_HEIGHT = 250;
 
 const SKINS: Record<WheelSkin, Skin> = { cel: celSkin, real: realSkin };
 
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 
 interface WheelProps {
   segments: WheelSegmentData[];
