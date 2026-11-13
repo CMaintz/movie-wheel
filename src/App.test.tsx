@@ -10,11 +10,13 @@ import {
   getWatchProviders,
 } from './services/api';
 import type { Media, MediaDetails } from './types';
+import { celebrate } from './utils/celebrate';
 
 configure({ asyncUtilTimeout: 2500 });
 
 // The real pause before the result is long enough to push two-spin tests past the time limit
 vi.mock('./timing', () => ({ REVEAL_DELAY: 200 }));
+vi.mock('./utils/celebrate', () => ({ celebrate: vi.fn() }));
 
 vi.mock('./services/api', () => ({
   fetchWheelCandidates: vi.fn(),
@@ -71,6 +73,7 @@ const renderApp = () =>
 describe('App', () => {
   beforeEach(() => {
     drawnImages.length = 0;
+    vi.mocked(celebrate).mockClear();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext as never);
     vi.stubGlobal('Image', InstantImage);
     // Each animation frame jumps a minute ahead on its own clock, so any spin ends within a few frames
@@ -102,9 +105,11 @@ describe('App', () => {
     expect(await screen.findAllByRole('button', { name: 'Drama' })).not.toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    expect(celebrate).not.toHaveBeenCalled();
 
-    // The landed wheel stays in view for a moment before the result covers it
+    // The landed wheel stays in view for a moment, with confetti, before the result covers it
     expect(await screen.findByText('The wheel picked Movie 4.')).toBeInTheDocument();
+    expect(celebrate).toHaveBeenCalledOnce();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(await screen.findByText('Plot of 4')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Movie 4' })).toBeInTheDocument();

@@ -13,14 +13,18 @@ import { realSkin } from '../wheel/realSkin';
 
 const SEGMENT_COUNT = 12;
 const SEGMENT_ANGLE = TAU / SEGMENT_COUNT;
-const SPIN_DURATION = 10_000; // ms
+const SPIN_DURATION = 6500; // ms
 const REDUCED_SPIN_DURATION = 1200;
 // Top speed is about turns * 3.2 / duration. Past ~2.5 turns a second each frame moves the wheel
 // half a segment, and the boxes strobe instead of blurring into a spin.
-const MIN_ROTATIONS = 6;
-const MAX_EXTRA_ROTATIONS = 2;
+const MIN_ROTATIONS = 4;
+const MAX_EXTRA_ROTATIONS = 1;
 // What's left to watch after the viewer skips: the slow crawl past the last few pegs
-const SKIP_REMAINING = 2800;
+const SKIP_REMAINING = 2200;
+// Turning that a single frame smears into a blur: past this the boxes would jump visibly between
+// frames, so extra copies are drawn along the arc the wheel swept since the last one.
+const BLUR_STEP = 0.045; // rad per copy
+const MAX_BLUR_COPIES = 4;
 const LOADING_SPEED = 0.0012; // rad/ms: a lazy turn while candidates load
 const MAX_SIZE = 560;
 // Title, spin button, hint and the toggles row below the wheel
@@ -153,7 +157,7 @@ const Wheel: React.FC<WheelProps> = ({
   const frameRef = useRef<FrameLayers | null>(null);
   // The frame loops read these through refs: restarting a loop when they change would replan the
   // spin from scratch, so the wheel would lurch and run its full length again.
-  const drawRef = useRef<(rotation: number, timeMs: number, lights: LightMode) => void>(() => {});
+  const drawRef = useRef<(rotation: number, timeMs: number, lights: LightMode, sweep?: number) => void>(() => {});
   const skipRef = useRef(skipRequested);
 
   // Responsive sizing: as large as the column allows, capped by viewport height on short screens
@@ -180,7 +184,7 @@ const Wheel: React.FC<WheelProps> = ({
     };
   }, []);
 
-  const drawWheel = useCallback((rotation: number, timeMs: number, lights: LightMode) => {
+  const drawWheel = useCallback((rotation: number, timeMs: number, lights: LightMode, sweep = 0) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -217,15 +221,24 @@ const Wheel: React.FC<WheelProps> = ({
     ctx.drawImage(frame.back, 0, 0, size, size);
 
     const d = turning.diameter;
-    const blitTurning = (layer: HTMLCanvasElement, dx = 0, dy = 0) => {
+    const blitTurning = (layer: HTMLCanvasElement, dx = 0, dy = 0, at = rotation) => {
       ctx.save();
       ctx.translate(g.cx + dx, g.cy + dy);
-      ctx.rotate(rotation);
+      ctx.rotate(at);
       ctx.drawImage(layer, -d / 2, -d / 2, d, d);
       ctx.restore();
     };
+    // Copies spread back along the swept arc; drawing copy k at 1/k opacity weights them all equally
+    const copies = Math.min(MAX_BLUR_COPIES, Math.max(1, Math.ceil(Math.abs(sweep) / BLUR_STEP)));
+    const blitBlurred = (layer: HTMLCanvasElement) => {
+      for (let k = 1; k <= copies; k++) {
+        ctx.globalAlpha = 1 / k;
+        blitTurning(layer, 0, 0, rotation - (sweep * (k - 1)) / copies);
+      }
+      ctx.globalAlpha = 1;
+    };
     const shadow = painter.boxShadow(g);
-    blitTurning(turning.face);
+    blitBlurred(turning.face);
     ctx.save();
     // Keep the shadow on the face, not spilling onto the rim
     ctx.beginPath();
@@ -233,7 +246,7 @@ const Wheel: React.FC<WheelProps> = ({
     ctx.clip();
     blitTurning(turning.shadow, shadow.dx, shadow.dy);
     ctx.restore();
-    blitTurning(turning.boxes);
+    blitBlurred(turning.boxes);
 
     if (wheelState === 'stopped' && winnerIndex !== null) {
       ctx.save();
@@ -297,6 +310,7 @@ const Wheel: React.FC<WheelProps> = ({
     let rate = 1;
     let skipped = false;
     let framesAtRest = 0;
+    let lastAngle = startAngle;
     let active = true;
     let frameId = 0;
 
@@ -311,7 +325,10 @@ const Wheel: React.FC<WheelProps> = ({
       }
       const angle = startAngle + spinEase(progress) * totalAngle;
       currentAngleRef.current = angle;
-      drawRef.current(angle, now, 'spinning');
+      // Measured on the dial, so a skip's jump of whole turns doesn't read as a huge sweep
+      const sweep = reduced ? 0 : (((angle - lastAngle + Math.PI) % TAU) + TAU) % TAU - Math.PI;
+      lastAngle = angle;
+      drawRef.current(angle, now, 'spinning', sweep);
       // The first frame bakes the new posters. Starting the clock on the frame after it keeps that
       // cost from showing up as a jump.
       if (fromTime === null && ++framesAtRest === 2) fromTime = now;

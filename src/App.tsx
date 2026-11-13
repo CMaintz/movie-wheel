@@ -10,6 +10,7 @@ import type { CaseStyle, WheelSkin } from './utils/wheelArt';
 import type { Media } from './types';
 import { REVEAL_DELAY } from './timing';
 import { prefersReducedMotion } from './utils/motion';
+import { celebrate } from './utils/celebrate';
 import { SlidersHorizontal, Loader2 } from 'lucide-react';
 
 const CASE_STYLE_KEY = 'moviewheel_case_style';
@@ -88,6 +89,7 @@ function App() {
 
   useEffect(() => {
     if (!stopped) return;
+    celebrate();
     const pick = wheel.winnerMedia;
     const id = window.setTimeout(() => setRevealedPick(pick), REVEAL_DELAY);
     return () => window.clearTimeout(id);
