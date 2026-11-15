@@ -166,14 +166,14 @@ describe('App', () => {
   it('cuts a spin short when Skip is pressed', async () => {
     const user = userEvent.setup();
     renderApp();
-    // Real frame pacing: a full spin is over 600 frames
+    // Real frame pacing: a full spin is over 300 frames
     frameStep = 16;
 
     await user.click(screen.getByRole('button', { name: 'Spin!' }));
     await user.click(await screen.findByRole('button', { name: 'Skip' }));
 
     expect(await screen.findByRole('dialog', { name: 'Movie 4' }, { timeout: 4000 })).toBeInTheDocument();
-    expect(frameCount).toBeLessThan(350);
+    expect(frameCount).toBeLessThan(200);
   });
 
   it('spins when the wheel itself is clicked', async () => {
