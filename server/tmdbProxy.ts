@@ -5,6 +5,8 @@ const TMDB_BASE = 'https://api.themoviedb.org/3';
 const PROXY_PREFIX = '/api/tmdb';
 
 const ALLOWED_ROOTS = new Set(['genre', 'discover', 'movie', 'tv']);
+// Title search for the custom list; the other search endpoints (people, companies) aren't used
+const ALLOWED_EXACT = new Set(['/search/multi']);
 const SAFE_SEGMENT = /^[A-Za-z0-9_-]+$/;
 
 export interface RateLimiter {
@@ -22,6 +24,7 @@ export interface ProxyOptions {
 
 /** Only read-only TMDB resources the app uses; each segment must be a plain token (no `..`, no encoding tricks). */
 export const isAllowedPath = (path: string): boolean => {
+  if (ALLOWED_EXACT.has(path)) return true;
   if (!path.startsWith('/')) return false;
   const segments = path.slice(1).split('/');
   return (

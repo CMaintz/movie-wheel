@@ -384,7 +384,8 @@ const Wheel: React.FC<WheelProps> = ({
   }, [wheelState, drawWheel]);
 
   const hubSize = wheelGeometry(canvasSize, SEGMENT_COUNT).hubR * 2;
-  const titles = segments.filter(s => s.title !== '?').map(s => s.title);
+  // A shortlist repeats round the wheel; each title is named once
+  const titles = [...new Set(segments.filter(s => s.title !== '?').map(s => s.title))];
   const label = titles.length
     ? `Prize wheel with ${titles.length} titles: ${titles.join(', ')}`
     : 'Prize wheel of blank tapes. Spin to fill it with titles.';

@@ -111,6 +111,25 @@ export const getMergedGenres = async (): Promise<MergedGenre[]> => {
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 };
 
+// --- Search ---
+
+/** Movies and shows matching `query`, in TMDB's relevance order. People are left out. */
+export const searchTitles = async (query: string): Promise<Media[]> => {
+  const data = await tmdbGet<{ results: (RawMedia & { media_type: string })[] }>('/search/multi', {
+    query,
+    include_adult: 'false',
+  });
+  return data.results
+    .filter((item): item is RawMedia & { media_type: 'movie' | 'tv' } =>
+      item.media_type === 'movie' || item.media_type === 'tv'
+    )
+    .map(item => ({
+      ...item,
+      title: item.title ?? item.name ?? '',
+      release_date: item.release_date || item.first_air_date,
+    }));
+};
+
 // --- Media details ---
 
 export const getMediaDetails = async (

@@ -87,6 +87,34 @@ describe('useWheel', () => {
     expect([...(seen ?? [])].sort()).toEqual(Array.from({ length: 24 }, (_, i) => `movie:${i + 1}`).sort());
   });
 
+  it('spins a list of chosen titles round the whole wheel, landing on one of them', async () => {
+    vi.mocked(fetchWheelCandidates).mockClear();
+    const list = [movie(1), movie(2), movie(3)];
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+    const { result } = renderHook(() => useWheel());
+    await act(() => result.current.spinList(list));
+
+    expect(fetchWheelCandidates).not.toHaveBeenCalled();
+    expect(result.current.segments.map(s => s.id)).toEqual([1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]);
+    expect(result.current.winnerMedia).toBe(list[1]);
+    expect(result.current.segments[result.current.winnerIndex!].id).toBe(2);
+    expect(result.current.wheelState).toBe('spinning');
+  });
+
+  it('leaves titles from a list spin free to come up in later filtered spins', async () => {
+    let seenAtFetch: string[] = [];
+    vi.mocked(fetchWheelCandidates).mockImplementation(async (_f, _g, _n, seen) => {
+      seenAtFetch = [...(seen ?? [])];
+      return Array.from({ length: 12 }, (_, i) => movie(i + 1));
+    });
+    const { result } = renderHook(() => useWheel());
+    await act(() => result.current.spinList([movie(1), movie(2)]));
+    await act(() => result.current.spin(filters, []));
+
+    expect(seenAtFetch).toEqual([]);
+  });
+
   it('reports an empty result without spinning', async () => {
     vi.mocked(fetchWheelCandidates).mockResolvedValue([]);
 
