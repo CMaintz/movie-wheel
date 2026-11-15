@@ -24,7 +24,7 @@ describe('spinCurve', () => {
 
   it('settles onto the pick instead of braking to a halt', () => {
     const { ease } = spinCurve();
-    expect(1 - ease(0.98)).toBeLessThan(2e-5);
+    expect(1 - ease(0.98)).toBeLessThan(6e-5);
   });
 
   it('picks up at the speed the wheel was already turning', () => {

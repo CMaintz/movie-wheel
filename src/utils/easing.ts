@@ -2,7 +2,7 @@ const TAU = 2 * Math.PI;
 const SAMPLES = 2048;
 // How the wheel sheds speed: velocity falls as (1 - t)^SETTLE, so it loses most of it early and
 // then eases onto the pick with the deceleration fading to nothing, rather than braking to a stop.
-const SETTLE = 2.2;
+const SETTLE = 1.6;
 // Share of the spin spent winding up to top speed, so the wheel reads as heavy rather than flicked
 const WIND_UP = 0.1;
 

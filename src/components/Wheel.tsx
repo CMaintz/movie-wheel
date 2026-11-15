@@ -15,7 +15,7 @@ const SEGMENT_COUNT = 12;
 const SEGMENT_ANGLE = TAU / SEGMENT_COUNT;
 const SPIN_DURATION = 5000; // ms
 const REDUCED_SPIN_DURATION = 1200;
-// Top speed is about turns * 3 / duration. Past ~2.5 turns a second each frame moves the wheel
+// Top speed is about turns * 2.5 / duration. Past ~2.5 turns a second each frame moves the wheel
 // half a segment, and the boxes strobe instead of blurring into a spin.
 const MIN_ROTATIONS = 3;
 const MAX_EXTRA_ROTATIONS = 1;
