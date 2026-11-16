@@ -33,7 +33,7 @@ const setup = (overrides: Partial<ProxyOptions> = {}) => {
 };
 
 describe('isAllowedPath', () => {
-  it.each(['/genre/movie/list', '/discover/tv', '/movie/603', '/tv/1399/watch/providers'])(
+  it.each(['/genre/movie/list', '/discover/tv', '/movie/603', '/tv/1399/watch/providers', '/search/multi'])(
     'allows %s',
     path => expect(isAllowedPath(path)).toBe(true)
   );
@@ -41,6 +41,8 @@ describe('isAllowedPath', () => {
   it.each([
     '/account/123',
     '/search/movie',
+    '/search/person',
+    '/search/multi/x',
     '/movie',
     '/movie/../account',
     '/movie/%2e%2e/account',

@@ -8,6 +8,7 @@ import {
   getMediaDetails,
   getMergedGenres,
   getWatchProviders,
+  searchTitles,
 } from './services/api';
 import type { Media, MediaDetails } from './types';
 import { celebrate } from './utils/celebrate';
@@ -23,6 +24,7 @@ vi.mock('./services/api', () => ({
   getMediaDetails: vi.fn(),
   getMergedGenres: vi.fn(),
   getWatchProviders: vi.fn(),
+  searchTitles: vi.fn(),
 }));
 
 // jsdom has no canvas: every context method is a no-op that returns the context itself,
@@ -212,6 +214,36 @@ describe('App', () => {
     expect(screen.getByRole('dialog', { name: 'Filters' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Filters' })).not.toBeInTheDocument();
+  });
+
+  it('spins my own list, knocking each pick out until one is left standing', async () => {
+    vi.mocked(searchTitles).mockResolvedValue(movies.slice(0, 3));
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(screen.getByRole('button', { name: 'My list' }));
+    expect(screen.getByRole('button', { name: 'Spin!' })).toBeDisabled();
+    await user.type(screen.getByRole('searchbox'), 'movie');
+    for (const n of [1, 2, 3]) await user.click(await screen.findByRole('button', { name: `Add Movie ${n}` }));
+    await user.click(screen.getByRole('checkbox', { name: /Elimination/ }));
+
+    await user.click(screen.getByRole('button', { name: 'Spin!' }));
+    expect(await screen.findByRole('dialog', { name: 'Movie 1' })).toBeInTheDocument();
+    expect(fetchWheelCandidates).not.toHaveBeenCalled();
+    expect(screen.getByRole('img', { name: 'Prize wheel with 3 titles: Movie 1, Movie 2, Movie 3' })).toBeInTheDocument();
+
+    // The pick is out: the next spin is between the other two
+    await user.click(screen.getByRole('button', { name: /Knock it out/ }));
+    expect(await screen.findByRole('dialog', { name: 'Movie 2' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(
+      screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Movie 3 is the last one standing.')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Spin!' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Start over' }));
+    expect(screen.getByRole('button', { name: 'Spin!' })).toBeEnabled();
   });
 
   it('shows an error when no titles match', async () => {

@@ -6,6 +6,7 @@ import {
   getMediaDetails,
   getMergedGenres,
   getWatchProviders,
+  searchTitles,
 } from './api';
 import type { DiscoverQuery } from './api';
 import { mediaKey } from '../utils/mediaKey';
@@ -177,6 +178,29 @@ describe('discoverRandom', () => {
     const res = await discoverRandom('tv', query(), 1);
 
     expect(res.results[0]).toMatchObject({ title: 'Some Show', media_type: 'tv' });
+  });
+});
+
+describe('searchTitles', () => {
+  it('returns movies and shows with their titles and dates, leaving out people', async () => {
+    const fetchMock = mockFetch(() => ({
+      results: [
+        { ...rawMovie(1), media_type: 'movie', release_date: '1999-03-31' },
+        { id: 2, name: 'Keanu Reeves', media_type: 'person' },
+        { id: 3, name: 'The Matrix Show', media_type: 'tv', first_air_date: '2001-01-01', poster_path: null },
+      ],
+    }));
+
+    const results = await searchTitles('matrix');
+
+    const url = calledUrl(fetchMock);
+    expect(url.pathname).toMatch(/\/search\/multi$/);
+    expect(url.searchParams.get('query')).toBe('matrix');
+    expect(url.searchParams.get('include_adult')).toBe('false');
+    expect(results).toEqual([
+      expect.objectContaining({ id: 1, title: 'Movie 1', media_type: 'movie', release_date: '1999-03-31' }),
+      expect.objectContaining({ id: 3, title: 'The Matrix Show', media_type: 'tv', release_date: '2001-01-01' }),
+    ]);
   });
 });
 

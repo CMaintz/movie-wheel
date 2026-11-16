@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import type { Media, WheelSegmentData, MergedGenre } from '../types';
 import { fetchWheelCandidates } from '../services/api';
 import { mediaKey } from '../utils/mediaKey';
+import { fillSlots, pickSlot } from '../utils/listWheel';
 import type { FilterState } from './useFilters';
 
 export type WheelState = 'idle' | 'loading' | 'spinning' | 'stopped';
@@ -42,6 +43,24 @@ export const useWheel = () => {
   // Titles that have been on the wheel since the page loaded, kept off later spins
   const seenRef = useRef(new Set<string>());
 
+  // Puts `movies` on the wheel, one per slot, and starts the spin towards slot `winner`
+  const load = useCallback(async (movies: Media[], winner: number) => {
+    mediaListRef.current = movies;
+    const newSegments: WheelSegmentData[] = movies.map(m => ({
+      id: m.id,
+      title: m.title,
+      posterUrl: m.poster_path ? `${TMDB_IMG}${m.poster_path}` : null,
+      mediaType: m.media_type,
+    }));
+    // The wheel bakes posters when the segments change, so the images must be in place first:
+    // setting segments before the preload finishes paints the previous spin's posters.
+    imagesRef.current = await preloadImages(newSegments.map(s => s.posterUrl));
+    setSegments(newSegments);
+    setWinnerIndex(winner);
+    setWinnerMedia(movies[winner]);
+    setWheelState('spinning');
+  }, []);
+
   const spin = useCallback(async (
     filters: FilterState,
     allGenres: MergedGenre[]
@@ -61,31 +80,28 @@ export const useWheel = () => {
         return;
       }
 
-      mediaListRef.current = movies;
       for (const m of movies) seenRef.current.add(mediaKey(m));
-
-      const newSegments: WheelSegmentData[] = movies.map(m => ({
-        id: m.id,
-        title: m.title,
-        posterUrl: m.poster_path ? `${TMDB_IMG}${m.poster_path}` : null,
-        mediaType: m.media_type,
-      }));
-      // The wheel bakes posters when the segments change, so the images must be in place first:
-      // setting segments before the preload finishes paints the previous spin's posters.
-      imagesRef.current = await preloadImages(newSegments.map(s => s.posterUrl));
-      setSegments(newSegments);
-
-      // Pick winner
-      const winner = Math.floor(Math.random() * movies.length);
-      setWinnerIndex(winner);
-      setWinnerMedia(movies[winner]);
-      setWheelState('spinning');
+      await load(movies, Math.floor(Math.random() * movies.length));
     } catch (err) {
       console.error('Wheel spin error:', err);
       setError('Something went wrong fetching movies. Please try again.');
       setWheelState('idle');
     }
-  }, []);
+  }, [load]);
+
+  /**
+   * Spins the viewer's own `titles` (at least 2), repeated to fill the wheel. Each title has the
+   * same chance, and these spins neither read nor add to the session's seen titles.
+   */
+  const spinList = useCallback(async (titles: Media[]) => {
+    setError(null);
+    setSkipRequested(false);
+    setWheelState('loading');
+    setWinnerIndex(null);
+    setWinnerMedia(null);
+    const slots = fillSlots(titles, SEGMENT_COUNT);
+    await load(slots, pickSlot(slots, titles));
+  }, [load]);
 
   const skip = useCallback(() => setSkipRequested(true), []);
 
@@ -118,6 +134,7 @@ export const useWheel = () => {
     error,
     images: imagesRef,
     spin,
+    spinList,
     onSpinComplete,
     skip,
     skipRequested,

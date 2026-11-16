@@ -13,11 +13,20 @@ interface ResultModalProps {
   onClose: () => void;
   onSpinAgain: () => void;
   disabled?: boolean;
+  /** Text on the spin-again button, for when spinning again means something more */
+  spinAgainLabel?: string;
 }
 
 const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
 
-const ResultModal: React.FC<ResultModalProps> = ({ media, caseStyle = 'vhs', onClose, onSpinAgain, disabled }) => {
+const ResultModal: React.FC<ResultModalProps> = ({
+  media,
+  caseStyle = 'vhs',
+  onClose,
+  onSpinAgain,
+  disabled,
+  spinAgainLabel = 'Spin Again',
+}) => {
   const dialogRef = useRef<HTMLDivElement>(null);
   const [details, setDetails] = useState<MediaDetails | null>(null);
   const [providers, setProviders] = useState<WatchProvidersResult | null>(null);
@@ -238,7 +247,7 @@ const ResultModal: React.FC<ResultModalProps> = ({ media, caseStyle = 'vhs', onC
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary-dark text-white font-display tracking-wide rounded-full border-2 border-secondary transition-colors disabled:opacity-50"
               >
                 <RotateCw size={16} />
-                Spin Again
+                {spinAgainLabel}
               </button>
             </div>
           </div>

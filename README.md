@@ -16,6 +16,7 @@ Live: https://moviewheel.maintz.dev
 
 - Spin-the-wheel picker: a 12-slot game-show wheel on canvas (marquee bulbs, pegs and a flapper that ticks as they pass), in a cartoon or a classic look, with each title dressed as a VHS sleeve or DVD case. Spin with the button, the wheel or <kbd>Space</kbd>, and skip to the ending the same way
 - Fresh picks: titles already on the wheel this session stay off later spins, and short films are left out
+- My list: search TMDB for your own shortlist (2 to 12 titles) and let the wheel choose between them, each with an even chance. Elimination mode drops every pick until one is left standing
 - Filters: media type (movie / TV / both), genres (match any or all), release year range, minimum rating, minimum vote count and original language, saved in `localStorage`
 - Genre combos: Rom-Com, Horror Comedy, Action Thriller and a dozen more. A combo only matches titles that have both genres, and you can mix combos with plain genres
 - Result details: runtime or season count, genres, director (or creator for TV), cast, trailer, and TMDB/IMDb links
@@ -46,10 +47,10 @@ api.themoviedb.org/3
 
 ```
 src/
-├── components/   Wheel (canvas), FilterPanel, ResultModal, WatchProviders
-├── hooks/        useWheel (spin state machine), useFilters (persisted filter state)
+├── components/   Wheel (canvas), FilterPanel, MyListPanel, ResultModal, WatchProviders
+├── hooks/        useWheel (spin state machine), useFilters (persisted filter state), useMyList (saved shortlist)
 ├── services/     api.ts: TMDB calls, candidate selection
-└── utils/        wheelMath (spin/landing angles), genreCombos, easing, region detection
+└── utils/        wheelMath (spin/landing angles), listWheel (shortlist slots), genreCombos, easing, region detection
 server/           tmdbProxy.ts: platform-neutral proxy core
 worker/           Cloudflare Worker entry (serves dist/ + proxies /api/*)
 ```
