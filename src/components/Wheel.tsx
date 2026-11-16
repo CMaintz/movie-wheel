@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { WheelSegmentData } from '../types';
 import type { WheelState } from '../hooks/useWheel';
-import { skipSpin, spinEase } from '../utils/easing';
+import { spinCurve } from '../utils/easing';
 import { prefersReducedMotion } from '../utils/motion';
 import { TAU, computeSpinDelta } from '../utils/wheelMath';
 import { boxGeometry, bulbLit, flapperAngle } from '../utils/wheelArt';
@@ -13,14 +13,14 @@ import { realSkin } from '../wheel/realSkin';
 
 const SEGMENT_COUNT = 12;
 const SEGMENT_ANGLE = TAU / SEGMENT_COUNT;
-const SPIN_DURATION = 6500; // ms
+const SPIN_DURATION = 5000; // ms
 const REDUCED_SPIN_DURATION = 1200;
-// Top speed is about turns * 3.2 / duration. Past ~2.5 turns a second each frame moves the wheel
+// Top speed is about turns * 2.5 / duration. Past ~2.5 turns a second each frame moves the wheel
 // half a segment, and the boxes strobe instead of blurring into a spin.
-const MIN_ROTATIONS = 4;
+const MIN_ROTATIONS = 3;
 const MAX_EXTRA_ROTATIONS = 1;
 // What's left to watch after the viewer skips: the slow crawl past the last few pegs
-const SKIP_REMAINING = 2200;
+const SKIP_REMAINING = 1800;
 // Turning that a single frame smears into a blur: past this the boxes would jump visibly between
 // frames, so extra copies are drawn along the arc the wheel swept since the last one.
 const BLUR_STEP = 0.045; // rad per copy
@@ -303,6 +303,8 @@ const Wheel: React.FC<WheelProps> = ({
     const jitter = (Math.random() - 0.5) * SEGMENT_ANGLE * 0.5;
     const startAngle = currentAngleRef.current;
     const totalAngle = computeSpinDelta(startAngle, winnerIndex, SEGMENT_COUNT, fullTurns, jitter);
+    // The wheel was already idling round while the titles loaded; the spin takes that speed over
+    const curve = spinCurve(reduced ? 0 : (LOADING_SPEED * duration) / totalAngle);
 
     // Progress advances from `fromProgress` at `rate` since `fromTime`; a skip moves all three
     let fromTime: number | null = null;
@@ -319,11 +321,11 @@ const Wheel: React.FC<WheelProps> = ({
       let progress = fromTime === null ? 0 : Math.min(fromProgress + (Math.max(0, now - fromTime) / duration) * rate, 1);
       if (skipRef.current && !skipped && !reduced) {
         skipped = true;
-        ({ progress, rate } = skipSpin(progress, totalAngle, duration, SKIP_REMAINING));
+        ({ progress, rate } = curve.skip(progress, totalAngle, duration, SKIP_REMAINING));
         fromProgress = progress;
         fromTime = now;
       }
-      const angle = startAngle + spinEase(progress) * totalAngle;
+      const angle = startAngle + curve.ease(progress) * totalAngle;
       currentAngleRef.current = angle;
       // Measured on the dial, so a skip's jump of whole turns doesn't read as a huge sweep
       const sweep = reduced ? 0 : (((angle - lastAngle + Math.PI) % TAU) + TAU) % TAU - Math.PI;
